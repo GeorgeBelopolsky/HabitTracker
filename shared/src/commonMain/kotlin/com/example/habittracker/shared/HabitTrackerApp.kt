@@ -30,6 +30,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -52,6 +53,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
+import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.LocalDrink
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PhoneDisabled
+import androidx.compose.material.icons.rounded.Pool
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.material.icons.rounded.SelfImprovement
+import androidx.compose.material.icons.rounded.Spa
+import androidx.compose.material.icons.rounded.TrackChanges
+import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material.icons.rounded.Work
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -63,14 +86,63 @@ private val Accent = Color(0xFF6C5CE7)
 private val AccentDark = Color(0xFFA99DF4)
 private val AppBackground = Color(0xFFF7F7FB)
 private val DarkBackground = Color(0xFF121218)
-private val HabitColors = listOf(
+internal val HabitColors = listOf(
     Color(0xFF70D6B4),
     Color(0xFFFFC857),
     Color(0xFFFF8B8B),
     Color(0xFF74B9FF),
     Color(0xFFC89BFF),
 )
-private val HabitEmojis = listOf("✨", "💧", "📚", "🏃", "🧘", "🥗", "😴", "🎯")
+internal data class HabitIconOption(val key: String, val image: ImageVector)
+
+private val HabitIcons = listOf(
+    HabitIconOption("fitness", Icons.Rounded.FitnessCenter),
+    HabitIconOption("water", Icons.Rounded.LocalDrink),
+    HabitIconOption("reading", Icons.AutoMirrored.Rounded.MenuBook),
+    HabitIconOption("running", Icons.AutoMirrored.Rounded.DirectionsRun),
+    HabitIconOption("meditation", Icons.Rounded.SelfImprovement),
+    HabitIconOption("food", Icons.Rounded.Restaurant),
+    HabitIconOption("sleep", Icons.Rounded.Bedtime),
+    HabitIconOption("goal", Icons.Rounded.TrackChanges),
+    HabitIconOption("cycling", Icons.AutoMirrored.Rounded.DirectionsBike),
+    HabitIconOption("swimming", Icons.Rounded.Pool),
+    HabitIconOption("walking", Icons.AutoMirrored.Rounded.DirectionsWalk),
+    HabitIconOption("sun", Icons.Rounded.WbSunny),
+    HabitIconOption("nature", Icons.Rounded.Spa),
+    HabitIconOption("writing", Icons.Rounded.Edit),
+    HabitIconOption("music", Icons.Rounded.MusicNote),
+    HabitIconOption("cleaning", Icons.Rounded.CleaningServices),
+    HabitIconOption("money", Icons.Rounded.Savings),
+    HabitIconOption("digital-detox", Icons.Rounded.PhoneDisabled),
+    HabitIconOption("love", Icons.Rounded.Favorite),
+    HabitIconOption("work", Icons.Rounded.Work),
+)
+
+internal fun habitIcon(key: String): ImageVector = HabitIcons.firstOrNull {
+    it.key == key || legacyIconKey(key) == it.key
+}?.image ?: Icons.Rounded.TrackChanges
+
+private fun legacyIconKey(value: String): String = when (value) {
+    "💧" -> "water"
+    "📚" -> "reading"
+    "🏃", "🏃‍♂️" -> "running"
+    "🧘", "🧘‍♀️", "🙏" -> "meditation"
+    "🥗" -> "food"
+    "😴" -> "sleep"
+    "🏋️‍♂️" -> "fitness"
+    "🚴‍♀️" -> "cycling"
+    "🏊‍♂️" -> "swimming"
+    "🚶", "🚶‍♂️" -> "walking"
+    "☀️" -> "sun"
+    "🌿" -> "nature"
+    "✍️" -> "writing"
+    "🎸" -> "music"
+    "🧹" -> "cleaning"
+    "💰" -> "money"
+    "📵" -> "digital-detox"
+    "❤️" -> "love"
+    else -> "goal"
+}
 
 @Composable
 fun HabitTrackerApp(storage: HabitStorage) {
@@ -85,16 +157,29 @@ fun HabitTrackerApp(storage: HabitStorage) {
             state = state,
             onSelectDay = store::selectDay,
             onToggle = { id -> scope.launch { store.toggle(id) } },
-            onDelete = { id -> scope.launch { store.delete(id) } },
+            onHabitClick = store::openHabit,
             onAddClick = store::openAddDialog,
         )
 
         if (state.showAddDialog) {
             AddHabitDialog(
                 onDismiss = store::closeAddDialog,
-                onConfirm = { title, emoji, color ->
-                    scope.launch { store.addHabit(title, emoji, color) }
+                onConfirm = { title, emoji, color, weeklyTarget ->
+                    scope.launch { store.addHabit(title, emoji, color, weeklyTarget) }
                 },
+            )
+        }
+
+        state.selectedHabit?.let { habit ->
+            HabitDetailsDialog(
+                habit = habit,
+                today = state.today,
+                onDismiss = store::closeHabit,
+                onToggleDay = { day -> scope.launch { store.toggle(habit.id, day) } },
+                onWeeklyTargetChange = { target ->
+                    scope.launch { store.updateWeeklyTarget(habit.id, target) }
+                },
+                onDelete = { scope.launch { store.delete(habit.id) } },
             )
         }
     }
@@ -119,7 +204,7 @@ private fun HabitTrackerScreen(
     state: HabitTrackerState,
     onSelectDay: (Long) -> Unit,
     onToggle: (String) -> Unit,
-    onDelete: (String) -> Unit,
+    onHabitClick: (String) -> Unit,
     onAddClick: () -> Unit,
 ) {
     Scaffold(
@@ -170,7 +255,7 @@ private fun HabitTrackerScreen(
                             day = state.selectedDay,
                             today = state.today,
                             onToggle = { onToggle(habit.id) },
-                            onDelete = { onDelete(habit.id) },
+                            onOpen = { onHabitClick(habit.id) },
                         )
                     }
                 }
@@ -284,48 +369,68 @@ private fun HabitCard(
     day: Long,
     today: Long,
     onToggle: () -> Unit,
-    onDelete: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     val completed = habit.isCompleted(day)
     val color = HabitColors[habit.colorIndex.mod(HabitColors.size)]
+    val completedThisWeek = habit.completedInWeek(today)
+    val goalReached = completedThisWeek >= habit.weeklyTargetDays
     Card(
+        onClick = onOpen,
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(color.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(habit.emoji, fontSize = 25.sp)
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(color.copy(alpha = 0.25f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = habitIcon(habit.emoji),
+                        contentDescription = null,
+                        tint = color,
+                        modifier = Modifier.size(27.dp),
+                    )
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(habit.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = if (goalReached) "Недельная цель выполнена" else habit.streakText(today),
+                        color = if (goalReached) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = if (goalReached) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                }
+                Button(
+                    onClick = onToggle,
+                    shape = CircleShape,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (completed) color else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (completed) Color(0xFF173C32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    ),
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.size(46.dp),
+                ) {
+                    Text(if (completed) "✓" else "", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                }
             }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(habit.title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    text = "Серия: ${habit.currentStreak(today)} дн.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
+            Spacer(Modifier.height(13.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LinearProgressIndicator(
+                    progress = { habit.weeklyProgress(today) },
+                    modifier = Modifier.weight(1f).height(7.dp).clip(CircleShape),
+                    color = color,
+                    trackColor = color.copy(alpha = 0.18f),
                 )
-            }
-            TextButton(onClick = onDelete, contentPadding = PaddingValues(6.dp)) {
-                Text("×", fontSize = 22.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            Button(
-                onClick = onToggle,
-                shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (completed) color else MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = if (completed) Color(0xFF173C32) else MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-                contentPadding = PaddingValues(0.dp),
-                modifier = Modifier.size(46.dp),
-            ) {
-                Text(if (completed) "✓" else "", fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "$completedThisWeek/${habit.weeklyTargetDays} в неделю",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
@@ -353,11 +458,12 @@ private fun EmptyState(onAddClick: () -> Unit) {
 @Composable
 private fun AddHabitDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String, String, Int) -> Unit,
+    onConfirm: (String, String, Int, Int) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
-    var emoji by remember { mutableStateOf(HabitEmojis.first()) }
+    var emoji by remember { mutableStateOf(HabitIcons.first().key) }
     var colorIndex by remember { mutableIntStateOf(0) }
+    var weeklyTarget by remember { mutableIntStateOf(3) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -377,14 +483,22 @@ private fun AddHabitDialog(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    HabitEmojis.forEach { candidate ->
+                    HabitIcons.forEach { candidate ->
                         Surface(
-                            modifier = Modifier.size(42.dp).clickable { emoji = candidate },
-                            shape = CircleShape,
-                            color = if (emoji == candidate) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.size(44.dp).clickable { emoji = candidate.key },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (emoji == candidate.key) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
                         ) {
-                            Box(contentAlignment = Alignment.Center) { Text(candidate, fontSize = 21.sp) }
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = candidate.image,
+                                    contentDescription = null,
+                                    tint = if (emoji == candidate.key) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(23.dp),
+                                )
+                            }
                         }
                     }
                 }
@@ -403,13 +517,45 @@ private fun AddHabitDialog(
                         }
                     }
                 }
+                WeeklyTargetSelector(
+                    value = weeklyTarget,
+                    onValueChange = { weeklyTarget = it },
+                )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(title, emoji, colorIndex) }, enabled = title.isNotBlank()) {
+            Button(onClick = { onConfirm(title, emoji, colorIndex, weeklyTarget) }, enabled = title.isNotBlank()) {
                 Text("Добавить")
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
+
+@Composable
+internal fun WeeklyTargetSelector(value: Int, onValueChange: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Цель: $value ${daysWord(value)} в неделю", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            (1..7).forEach { days ->
+                Surface(
+                    modifier = Modifier.size(38.dp).clickable { onValueChange(days) },
+                    shape = CircleShape,
+                    color = if (days == value) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            days.toString(),
+                            color = if (days == value) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun daysWord(value: Int): String = if (value == 1) "день" else if (value in 2..4) "дня" else "дней"

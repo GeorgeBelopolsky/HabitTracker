@@ -11,21 +11,25 @@ data class HabitTrackerState(
     val isLoading: Boolean = true,
     val selectedDay: Long = currentEpochDay(),
     val showAddDialog: Boolean = false,
+    val selectedHabitId: String? = null,
 ) {
     val today: Long get() = currentEpochDay()
 
     val stats: HabitStats
         get() {
-            val week = (0L..6L).map { today - it }.toSet()
+            val weekStart = startOfWeek(today)
+            val week = (0L..6L).map { weekStart + it }.toSet()
             return HabitStats(
                 completedToday = habits.count { it.isCompleted(today) },
                 total = habits.size,
                 weeklyCompletions = habits.sumOf { habit ->
-                    habit.completedEpochDays.count { it in week }
+                    habit.completedEpochDays.count { it in week }.coerceAtMost(habit.weeklyTargetDays)
                 },
-                weeklyTarget = habits.size * 7,
+                weeklyTarget = habits.sumOf { it.weeklyTargetDays },
             )
         }
+
+    val selectedHabit: Habit? get() = habits.firstOrNull { it.id == selectedHabitId }
 }
 
 class HabitStore(
@@ -53,7 +57,15 @@ class HabitStore(
         mutableState.value = mutableState.value.copy(showAddDialog = false)
     }
 
-    suspend fun addHabit(title: String, emoji: String, colorIndex: Int) = mutex.withLock {
+    fun openHabit(habitId: String) {
+        mutableState.value = mutableState.value.copy(selectedHabitId = habitId)
+    }
+
+    fun closeHabit() {
+        mutableState.value = mutableState.value.copy(selectedHabitId = null)
+    }
+
+    suspend fun addHabit(title: String, emoji: String, colorIndex: Int, weeklyTargetDays: Int) = mutex.withLock {
         if (title.isBlank()) return@withLock
         val updated = mutableState.value.habits + Habit(
             id = newHabitId(),
@@ -61,13 +73,13 @@ class HabitStore(
             emoji = emoji,
             colorIndex = colorIndex,
             createdAtEpochDay = currentEpochDay(),
+            weeklyTargetDays = weeklyTargetDays.coerceIn(1, 7),
         )
         repository.save(updated)
         mutableState.value = mutableState.value.copy(habits = updated, showAddDialog = false)
     }
 
-    suspend fun toggle(habitId: String) = mutex.withLock {
-        val day = mutableState.value.selectedDay
+    suspend fun toggle(habitId: String, day: Long = mutableState.value.selectedDay) = mutex.withLock {
         val updated = mutableState.value.habits.map { habit ->
             if (habit.id != habitId) habit
             else habit.copy(
@@ -82,9 +94,19 @@ class HabitStore(
         mutableState.value = mutableState.value.copy(habits = updated)
     }
 
+
+    suspend fun updateWeeklyTarget(habitId: String, weeklyTargetDays: Int) = mutex.withLock {
+        val updated = mutableState.value.habits.map { habit ->
+            if (habit.id == habitId) habit.copy(weeklyTargetDays = weeklyTargetDays.coerceIn(1, 7))
+            else habit
+        }
+        repository.save(updated)
+        mutableState.value = mutableState.value.copy(habits = updated)
+    }
+
     suspend fun delete(habitId: String) = mutex.withLock {
         val updated = mutableState.value.habits.filterNot { it.id == habitId }
         repository.save(updated)
-        mutableState.value = mutableState.value.copy(habits = updated)
+        mutableState.value = mutableState.value.copy(habits = updated, selectedHabitId = null)
     }
 }
