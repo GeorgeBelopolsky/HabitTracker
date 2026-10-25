@@ -14,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -60,12 +61,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -99,6 +103,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 private val Accent = Color(0xFF4F8F00)
 private val AccentDark = Color(0xFFA8FF00)
@@ -255,7 +260,11 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
     ) {
         BoxWithConstraints(Modifier.padding(6.dp).height(59.dp)) {
             val itemWidth = maxWidth / 2
-            val indicatorOffset by animateDpAsState(
+            val density = LocalDensity.current
+            val itemWidthPx = with(density) { itemWidth.toPx() }
+            var dragging by remember { mutableStateOf(false) }
+            var dragOffsetPx by remember { mutableFloatStateOf(0f) }
+            val settledOffset by animateDpAsState(
                 targetValue = if (selected == AppSection.HABITS) 0.dp else itemWidth,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -263,6 +272,17 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                 ),
                 label = "glass-indicator",
             )
+            val baseOffsetPx = if (selected == AppSection.HABITS) 0f else itemWidthPx
+            val indicatorOffset = if (dragging) {
+                with(density) { (baseOffsetPx + dragOffsetPx).coerceIn(0f, itemWidthPx).toDp() }
+            } else {
+                settledOffset
+            }
+            val liquidStretch = if (dragging && itemWidthPx > 0f) {
+                1f + 0.09f * (abs(dragOffsetPx) / itemWidthPx).coerceIn(0f, 1f)
+            } else {
+                1f
+            }
             Box(
                 Modifier
                     .offset(x = indicatorOffset)
@@ -270,14 +290,61 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                     .fillMaxHeight()
                     .padding(2.dp)
                     .clip(RoundedCornerShape(25.dp))
+                    .graphicsLayer {
+                        scaleX = liquidStretch
+                        scaleY = 1f / liquidStretch.coerceAtLeast(1f)
+                    }
                     .background(
                         Brush.linearGradient(
-                            listOf(Color.White.copy(alpha = 0.22f), Color(0xFF8EDC00).copy(alpha = 0.16f)),
+                            listOf(
+                                Color.White.copy(alpha = if (dragging) 0.30f else 0.22f),
+                                Color(0xFF8EDC00).copy(alpha = if (dragging) 0.24f else 0.16f),
+                            ),
                         ),
                     )
                     .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(25.dp)),
             )
-            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            Box(
+                Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth(0.62f)
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(Color.Transparent, Color.White.copy(alpha = 0.48f), Color.Transparent),
+                        ),
+                    ),
+            )
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(selected, itemWidthPx) {
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                dragging = true
+                                dragOffsetPx = 0f
+                            },
+                            onHorizontalDrag = { change, amount ->
+                                change.consume()
+                                dragOffsetPx += amount
+                            },
+                            onDragCancel = {
+                                dragging = false
+                                dragOffsetPx = 0f
+                            },
+                            onDragEnd = {
+                                val threshold = itemWidthPx * 0.22f
+                                when {
+                                    selected == AppSection.HABITS && dragOffsetPx > threshold -> onSelect(AppSection.FINANCE)
+                                    selected == AppSection.FINANCE && dragOffsetPx < -threshold -> onSelect(AppSection.HABITS)
+                                }
+                                dragging = false
+                                dragOffsetPx = 0f
+                            },
+                        )
+                    },
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
                 BottomBarItem(
                     label = "Привычки",
                     icon = Icons.Rounded.TrackChanges,
