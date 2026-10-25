@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
 import androidx.compose.material.icons.automirrored.rounded.DirectionsRun
@@ -175,6 +176,7 @@ fun HabitTrackerApp(storage: HabitStorage) {
     val financeState by financeStore.state.collectAsState()
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(AppSection.HABITS) }
+    var analyticsKind by remember { mutableStateOf(AnalyticsKind.FINANCE) }
 
     LaunchedEffect(store) { store.load() }
     LaunchedEffect(financeStore) {
@@ -207,23 +209,40 @@ fun HabitTrackerApp(storage: HabitStorage) {
                         onToggle = { id -> scope.launch { store.toggle(id) } },
                         onHabitClick = store::openHabit,
                         onAddClick = store::openAddDialog,
+                        onOpenAnalytics = {
+                            analyticsKind = AnalyticsKind.HABITS
+                            section = AppSection.ANALYTICS
+                        },
                     )
                     AppSection.FINANCE -> FinanceScreen(
                         state = financeState,
                         onCurrencyChange = { scope.launch { financeStore.selectCurrency(it) } },
                         onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
                         onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
-                    onRefreshRates = { scope.launch { financeStore.refreshRates(force = true) } },
+                        onRefreshRates = { scope.launch { financeStore.refreshRates(force = true) } },
                         onAdd = { title, amount, currency, type, category ->
                             scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
                         },
                         onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
-                    onAddCategory = { scope.launch { financeStore.addCategory(it) } },
-                    onDeleteCategory = { scope.launch { financeStore.deleteCategory(it) } },
+                        onAddCategory = { scope.launch { financeStore.addCategory(it) } },
+                        onDeleteCategory = { scope.launch { financeStore.deleteCategory(it) } },
+                        onCategoryColorChange = { name, color ->
+                            scope.launch { financeStore.updateCategoryColor(name, color) }
+                        },
                     )
+                    AppSection.ANALYTICS -> AnalyticsScreen(state, financeState, analyticsKind) { analyticsKind = it }
                 }
             }
-            AppBottomBar(section, { section = it }, Modifier.align(Alignment.BottomCenter))
+            AppBottomBar(
+                selected = section,
+                onSelect = { target ->
+                    if (target == AppSection.ANALYTICS && section != AppSection.ANALYTICS) {
+                        analyticsKind = if (section == AppSection.HABITS) AnalyticsKind.HABITS else AnalyticsKind.FINANCE
+                    }
+                    section = target
+                },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
 
         if (state.showAddDialog) {
@@ -250,7 +269,7 @@ fun HabitTrackerApp(storage: HabitStorage) {
     }
 }
 
-private enum class AppSection { HABITS, FINANCE }
+private enum class AppSection { HABITS, FINANCE, ANALYTICS }
 
 @Composable
 private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, modifier: Modifier = Modifier) {
@@ -265,22 +284,26 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
         color = Color(0xD9121510),
     ) {
         BoxWithConstraints(Modifier.padding(6.dp).height(59.dp)) {
-            val itemWidth = maxWidth / 2
+            val itemWidth = maxWidth / AppSection.entries.size
             val density = LocalDensity.current
             val itemWidthPx = with(density) { itemWidth.toPx() }
             var dragging by remember { mutableStateOf(false) }
             var dragOffsetPx by remember { mutableFloatStateOf(0f) }
             val settledOffset by animateDpAsState(
-                targetValue = if (selected == AppSection.HABITS) 0.dp else itemWidth,
+                targetValue = itemWidth * selected.ordinal,
                 animationSpec = spring(
                     dampingRatio = Spring.DampingRatioMediumBouncy,
                     stiffness = Spring.StiffnessMediumLow,
                 ),
                 label = "glass-indicator",
             )
-            val baseOffsetPx = if (selected == AppSection.HABITS) 0f else itemWidthPx
+            val baseOffsetPx = itemWidthPx * selected.ordinal
             val indicatorOffset = if (dragging) {
-                with(density) { (baseOffsetPx + dragOffsetPx).coerceIn(0f, itemWidthPx).toDp() }
+                with(density) {
+                    (baseOffsetPx + dragOffsetPx)
+                        .coerceIn(0f, itemWidthPx * (AppSection.entries.size - 1))
+                        .toDp()
+                }
             } else {
                 settledOffset
             }
@@ -341,8 +364,12 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                             onDragEnd = {
                                 val threshold = itemWidthPx * 0.22f
                                 when {
-                                    selected == AppSection.HABITS && dragOffsetPx > threshold -> onSelect(AppSection.FINANCE)
-                                    selected == AppSection.FINANCE && dragOffsetPx < -threshold -> onSelect(AppSection.HABITS)
+                                    dragOffsetPx > threshold && selected.ordinal < AppSection.entries.lastIndex -> {
+                                        onSelect(AppSection.entries[selected.ordinal + 1])
+                                    }
+                                    dragOffsetPx < -threshold && selected.ordinal > 0 -> {
+                                        onSelect(AppSection.entries[selected.ordinal - 1])
+                                    }
                                 }
                                 dragging = false
                                 dragOffsetPx = 0f
@@ -363,6 +390,13 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                     icon = Icons.Rounded.Savings,
                     selected = selected == AppSection.FINANCE,
                     onClick = { onSelect(AppSection.FINANCE) },
+                    modifier = Modifier.weight(1f),
+                )
+                BottomBarItem(
+                    label = "Аналитика",
+                    icon = Icons.Rounded.BarChart,
+                    selected = selected == AppSection.ANALYTICS,
+                    onClick = { onSelect(AppSection.ANALYTICS) },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -413,6 +447,7 @@ private fun HabitTrackerScreen(
     onToggle: (String) -> Unit,
     onHabitClick: (String) -> Unit,
     onAddClick: () -> Unit,
+    onOpenAnalytics: () -> Unit,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -438,7 +473,7 @@ private fun HabitTrackerScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item { Header() }
-                item { ProgressSummary(state.stats) }
+                item { ProgressSummary(state.stats, onOpenAnalytics) }
                 item {
                     DayPicker(
                         today = state.today,
@@ -492,44 +527,45 @@ private fun Header() {
 }
 
 @Composable
-private fun ProgressSummary(stats: HabitStats) {
+private fun ProgressSummary(stats: HabitStats, onClick: () -> Unit) {
     val todayProgress = if (stats.total == 0) 0f else stats.completedToday.toFloat() / stats.total
+    val weeklyProgress = if (stats.weeklyTarget == 0) 0f else {
+        stats.weeklyCompletions.toFloat() / stats.weeklyTarget
+    }
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1265D8)),
         shape = RoundedCornerShape(28.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(22.dp)) {
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = "${stats.completedToday}/${stats.total}",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "выполнено сегодня",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(bottom = 6.dp),
-                )
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Прогресс", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Аналитика  ›", color = Color.White.copy(alpha = 0.78f), fontWeight = FontWeight.SemiBold)
             }
-            Spacer(Modifier.height(16.dp))
-            LinearProgressIndicator(
-                progress = { todayProgress },
-                modifier = Modifier.fillMaxWidth().height(9.dp).clip(CircleShape),
-                color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.22f),
-            )
-            Spacer(Modifier.height(12.dp))
-            val weeklyPercent = if (stats.weeklyTarget == 0) 0 else {
-                stats.weeklyCompletions * 100 / stats.weeklyTarget
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+                ProgressRing("Сегодня", todayProgress, Modifier.weight(1f))
+                ProgressRing("Неделя", weeklyProgress, Modifier.weight(1f))
             }
-            Text(
-                text = "За неделю — $weeklyPercent%",
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.82f),
-                style = MaterialTheme.typography.labelLarge,
-            )
         }
+    }
+}
+
+@Composable
+private fun ProgressRing(label: String, progress: Float, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(66.dp), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(
+                progress = { progress.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxSize(),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.20f),
+                strokeWidth = 7.dp,
+            )
+            Text("${(progress * 100).toInt()}%", color = Color.White, fontWeight = FontWeight.ExtraBold)
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(label, color = Color.White, fontWeight = FontWeight.Bold)
     }
 }
 

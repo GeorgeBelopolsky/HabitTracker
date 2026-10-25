@@ -48,6 +48,7 @@ create table if not exists public.finance_categories (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 80),
+  color_index smallint not null default 0 check (color_index between 0 and 7),
   updated_at timestamptz not null default now(),
   unique (user_id, name)
 );

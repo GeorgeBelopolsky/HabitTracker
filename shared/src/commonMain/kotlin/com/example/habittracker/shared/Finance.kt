@@ -99,6 +99,7 @@ data class FinanceData(
         "Развлечения",
         "Прочее",
     ),
+    val categoryColors: Map<String, Int> = emptyMap(),
 )
 
 class FinanceRepository(private val storage: HabitStorage) {
@@ -196,11 +197,21 @@ class FinanceStore(
     suspend fun addCategory(name: String) = update { data ->
         val normalized = name.trim()
         if (normalized.isBlank() || data.categories.any { it.equals(normalized, ignoreCase = true) }) data
-        else data.copy(categories = data.categories + normalized)
+        else data.copy(
+            categories = data.categories + normalized,
+            categoryColors = data.categoryColors + (normalized to data.categories.size.mod(8)),
+        )
     }
 
     suspend fun deleteCategory(name: String) = update { data ->
-        data.copy(categories = data.categories.filterNot { it == name })
+        data.copy(
+            categories = data.categories.filterNot { it == name },
+            categoryColors = data.categoryColors - name,
+        )
+    }
+
+    suspend fun updateCategoryColor(name: String, colorIndex: Int) = update { data ->
+        data.copy(categoryColors = data.categoryColors + (name to colorIndex.mod(8)))
     }
 
     private suspend fun update(transform: (FinanceData) -> FinanceData) = mutex.withLock {
@@ -209,6 +220,21 @@ class FinanceStore(
         mutableState.value = FinanceState(updated, false)
     }
 }
+
+fun FinanceData.categoryColorIndex(name: String): Int = categoryColors[name]
+    ?: categories.indexOf(name).takeIf { it >= 0 }?.mod(8)
+    ?: name.fold(0) { result, char -> result + char.code }.mod(8)
+
+fun FinanceState.expensesByCategory(): List<Pair<String, Long>> = data.transactions
+    .asSequence()
+    .filter { it.type == TransactionType.EXPENSE }
+    .mapNotNull { transaction ->
+        convertMinor(transaction.amountMinor, transaction.currency, data.displayCurrency, data.rates)
+            ?.let { transaction.category to it }
+    }
+    .groupBy({ it.first }, { it.second })
+    .map { (category, values) -> category to values.sum() }
+    .sortedByDescending { it.second }
 
 fun convertMinor(
     amountMinor: Long,

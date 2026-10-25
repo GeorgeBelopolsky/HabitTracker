@@ -1,6 +1,8 @@
 package com.example.habittracker.shared
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -69,6 +71,7 @@ internal fun FinanceScreen(
     onDelete: (String) -> Unit,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (String) -> Unit,
+    onCategoryColorChange: (String, Int) -> Unit,
 ) {
     var showAdd by remember { mutableStateOf(false) }
     var presetCategory by remember { mutableStateOf("") }
@@ -151,7 +154,7 @@ internal fun FinanceScreen(
             }
             item {
                 CategorySection(
-                    categories = state.data.categories,
+                    data = state.data,
                     onSelect = {
                         presetCategory = it
                         showAdd = true
@@ -176,7 +179,12 @@ internal fun FinanceScreen(
                 }
             } else {
                 items(state.data.transactions, key = { it.id }) { transaction ->
-                    TransactionCard(transaction, currency, state.data.rates) { selectedTransaction = transaction }
+                    TransactionCard(
+                        transaction,
+                        currency,
+                        state.data.rates,
+                        FinanceCategoryPalette[state.data.categoryColorIndex(transaction.category)],
+                    ) { selectedTransaction = transaction }
                 }
             }
         }
@@ -196,9 +204,10 @@ internal fun FinanceScreen(
         onConfirm = { onAddCategory(it); showAddCategory = false },
     )
     if (showManageCategories) CategoryManagerDialog(
-        categories = state.data.categories,
+        data = state.data,
         onDismiss = { showManageCategories = false },
         onDelete = onDeleteCategory,
+        onColorChange = onCategoryColorChange,
     )
     if (showBudget) AmountDialog("Бюджет в ${currency.code}", currency, state.budgetMinor(), { showBudget = false }) {
         onBudgetChange(currency, it); showBudget = false
@@ -227,7 +236,7 @@ internal fun FinanceScreen(
 
 @Composable
 private fun CategorySection(
-    categories: List<String>,
+    data: FinanceData,
     onSelect: (String) -> Unit,
     onAdd: () -> Unit,
     onManage: () -> Unit,
@@ -238,13 +247,19 @@ private fun CategorySection(
             TextButton(onClick = onManage) { Text("Настроить") }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            categories.forEach { category ->
+            data.categories.forEach { category ->
+                val color = FinanceCategoryPalette[data.categoryColorIndex(category)]
                 Surface(
                     modifier = Modifier.clickable { onSelect(category) },
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    color = color.copy(alpha = 0.20f),
                 ) {
-                    Text(category, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        category,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                        fontWeight = FontWeight.SemiBold,
+                        color = color,
+                    )
                 }
             }
             Surface(
@@ -323,12 +338,14 @@ private fun FinanceMetric(title: String, amount: Long, currency: MoneyCurrency, 
 }
 
 @Composable
-private fun TransactionCard(item: MoneyTransaction, display: MoneyCurrency, rates: ExchangeRates, onClick: () -> Unit) {
-    val color = when (item.type) {
-        TransactionType.INCOME -> Color(0xFF70D6B4)
-        TransactionType.EXPENSE -> Color(0xFFFF8B8B)
-        else -> Color(0xFFFFC857)
-    }
+private fun TransactionCard(
+    item: MoneyTransaction,
+    display: MoneyCurrency,
+    rates: ExchangeRates,
+    categoryColor: Color,
+    onClick: () -> Unit,
+) {
+    val color = categoryColor
     val icon: ImageVector = when (item.type) {
         TransactionType.INCOME -> Icons.Rounded.ArrowDownward
         TransactionType.EXPENSE -> Icons.Rounded.ArrowUpward
@@ -418,17 +435,40 @@ private fun CategoryNameDialog(onDismiss: () -> Unit, onConfirm: (String) -> Uni
 }
 
 @Composable
-private fun CategoryManagerDialog(categories: List<String>, onDismiss: () -> Unit, onDelete: (String) -> Unit) {
+private fun CategoryManagerDialog(
+    data: FinanceData,
+    onDismiss: () -> Unit,
+    onDelete: (String) -> Unit,
+    onColorChange: (String, Int) -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Категории") },
         text = {
             Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState())) {
-                categories.forEach { category ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(category, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                        TextButton(onClick = { onDelete(category) }) {
-                            Icon(Icons.Rounded.Delete, contentDescription = "Удалить $category", tint = MaterialTheme.colorScheme.error)
+                data.categories.forEach { category ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(category, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { onDelete(category) }) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Удалить $category", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FinanceCategoryPalette.forEachIndexed { index, color ->
+                                val selected = data.categoryColorIndex(category) == index
+                                Box(
+                                    Modifier
+                                        .size(if (selected) 29.dp else 25.dp)
+                                        .clip(CircleShape)
+                                        .background(color)
+                                        .clickable { onColorChange(category, index) }
+                                        .then(
+                                            if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            else Modifier,
+                                        ),
+                                )
+                            }
                         }
                     }
                 }
@@ -437,6 +477,17 @@ private fun CategoryManagerDialog(categories: List<String>, onDismiss: () -> Uni
         confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
     )
 }
+
+internal val FinanceCategoryPalette = listOf(
+    Color(0xFFFFDD2D),
+    Color(0xFF64D8CB),
+    Color(0xFF7C9BFF),
+    Color(0xFFFF8FA3),
+    Color(0xFFA889FF),
+    Color(0xFFFFA95A),
+    Color(0xFF70D6B4),
+    Color(0xFFB6C1D1),
+)
 
 @Composable
 private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, onDismiss: () -> Unit, onConfirm: (Long) -> Unit) {
