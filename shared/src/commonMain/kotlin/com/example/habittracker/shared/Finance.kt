@@ -26,7 +26,7 @@ enum class TransactionType(val title: String) {
 @Serializable
 data class MoneyTransaction(
     val id: String,
-    val title: String,
+    val title: String = "",
     val amountMinor: Long,
     val currency: MoneyCurrency,
     val type: TransactionType,
@@ -100,6 +100,8 @@ data class FinanceData(
         "Прочее",
     ),
     val categoryColors: Map<String, Int> = emptyMap(),
+    val friends: List<String> = listOf("Бак", "Коля"),
+    val friendColors: Map<String, Int> = mapOf("Бак" to 4, "Коля" to 2),
 )
 
 class FinanceRepository(private val storage: HabitStorage) {
@@ -169,21 +171,20 @@ class FinanceStore(
     }
 
     suspend fun addTransaction(
-        title: String,
         amountMinor: Long,
         currency: MoneyCurrency,
         type: TransactionType,
-        category: String,
+        target: String,
     ) = update { data ->
-        if (title.isBlank() || amountMinor <= 0) data else data.copy(
+        if (target.isBlank() || amountMinor <= 0) data else data.copy(
             transactions = listOf(
                 MoneyTransaction(
                     id = newHabitId(),
-                    title = title.trim(),
+                    title = target.trim(),
                     amountMinor = amountMinor,
                     currency = currency,
                     type = type,
-                    category = category.trim().ifBlank { type.title },
+                    category = target.trim(),
                     epochDay = currentEpochDay(),
                 ),
             ) + data.transactions,
@@ -214,6 +215,23 @@ class FinanceStore(
         data.copy(categoryColors = data.categoryColors + (name to colorIndex.mod(8)))
     }
 
+    suspend fun addFriend(name: String) = update { data ->
+        val normalized = name.trim()
+        if (normalized.isBlank() || data.friends.any { it.equals(normalized, ignoreCase = true) }) data
+        else data.copy(
+            friends = data.friends + normalized,
+            friendColors = data.friendColors + (normalized to data.friends.size.mod(8)),
+        )
+    }
+
+    suspend fun deleteFriend(name: String) = update { data ->
+        data.copy(friends = data.friends.filterNot { it == name }, friendColors = data.friendColors - name)
+    }
+
+    suspend fun updateFriendColor(name: String, colorIndex: Int) = update { data ->
+        data.copy(friendColors = data.friendColors + (name to colorIndex.mod(8)))
+    }
+
     private suspend fun update(transform: (FinanceData) -> FinanceData) = mutex.withLock {
         val updated = transform(mutableState.value.data)
         repository.save(updated)
@@ -223,6 +241,10 @@ class FinanceStore(
 
 fun FinanceData.categoryColorIndex(name: String): Int = categoryColors[name]
     ?: categories.indexOf(name).takeIf { it >= 0 }?.mod(8)
+    ?: name.fold(0) { result, char -> result + char.code }.mod(8)
+
+fun FinanceData.friendColorIndex(name: String): Int = friendColors[name]
+    ?: friends.indexOf(name).takeIf { it >= 0 }?.mod(8)
     ?: name.fold(0) { result, char -> result + char.code }.mod(8)
 
 fun FinanceState.expensesByCategory(): List<Pair<String, Long>> = data.transactions

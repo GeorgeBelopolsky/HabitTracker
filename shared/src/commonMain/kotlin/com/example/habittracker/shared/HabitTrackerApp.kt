@@ -52,7 +52,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -218,14 +218,19 @@ fun HabitTrackerApp(storage: HabitStorage) {
                         onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
                         onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
                         onRefreshRates = { scope.launch { financeStore.refreshRates(force = true) } },
-                        onAdd = { title, amount, currency, type, category ->
-                            scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
+                        onAdd = { amount, currency, type, target ->
+                            scope.launch { financeStore.addTransaction(amount, currency, type, target) }
                         },
                         onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
                         onAddCategory = { scope.launch { financeStore.addCategory(it) } },
                         onDeleteCategory = { scope.launch { financeStore.deleteCategory(it) } },
                         onCategoryColorChange = { name, color ->
                             scope.launch { financeStore.updateCategoryColor(name, color) }
+                        },
+                        onAddFriend = { scope.launch { financeStore.addFriend(it) } },
+                        onDeleteFriend = { scope.launch { financeStore.deleteFriend(it) } },
+                        onFriendColorChange = { name, color ->
+                            scope.launch { financeStore.updateFriendColor(name, color) }
                         },
                     )
                     AppSection.ANALYTICS -> AnalyticsScreen(state, financeState, analyticsKind) { analyticsKind = it }
@@ -752,13 +757,15 @@ private fun AddHabitDialog(
         title = { Text("Новая привычка", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                TextField(
+                OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
                     label = { Text("Название") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    supportingText = { Text("Например: прогулка, вода или тренировка") },
                 )
                 Text("Иконка", style = MaterialTheme.typography.labelLarge)
                 Row(

@@ -40,6 +40,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,16 +69,22 @@ internal fun FinanceScreen(
     onBudgetChange: (MoneyCurrency, Long) -> Unit,
     onRatesChange: (Double?, Double?) -> Unit,
     onRefreshRates: () -> Unit,
-    onAdd: (String, Long, MoneyCurrency, TransactionType, String) -> Unit,
+    onAdd: (Long, MoneyCurrency, TransactionType, String) -> Unit,
     onDelete: (String) -> Unit,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (String) -> Unit,
     onCategoryColorChange: (String, Int) -> Unit,
+    onAddFriend: (String) -> Unit,
+    onDeleteFriend: (String) -> Unit,
+    onFriendColorChange: (String, Int) -> Unit,
 ) {
     var showAdd by remember { mutableStateOf(false) }
     var presetCategory by remember { mutableStateOf("") }
     var showAddCategory by remember { mutableStateOf(false) }
     var showManageCategories by remember { mutableStateOf(false) }
+    var showAddFriend by remember { mutableStateOf(false) }
+    var showManageFriends by remember { mutableStateOf(false) }
+    var presetType by remember { mutableStateOf(TransactionType.EXPENSE) }
     var showBudget by remember { mutableStateOf(false) }
     var showRates by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<MoneyTransaction?>(null) }
@@ -90,7 +98,11 @@ internal fun FinanceScreen(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { showAdd = true },
+                onClick = {
+                    presetCategory = ""
+                    presetType = TransactionType.EXPENSE
+                    showAdd = true
+                },
                 modifier = Modifier.padding(bottom = 72.dp),
                 containerColor = Color(0xFFA8FF00),
                 contentColor = Color(0xFF173600),
@@ -149,8 +161,14 @@ internal fun FinanceScreen(
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, Color(0xFF2F7DFF), Modifier.weight(1f))
-                    FinanceMetric("Расходы", expense, currency, Color(0xFFFF8B8B), Modifier.weight(1f))
+                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, transactionTypeColor(TransactionType.INCOME), Modifier.weight(1f))
+                    FinanceMetric("Расходы", expense, currency, transactionTypeColor(TransactionType.EXPENSE), Modifier.weight(1f))
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FinanceMetric("Мне должны", state.totalMinor(TransactionType.OWED_TO_ME), currency, transactionTypeColor(TransactionType.OWED_TO_ME), Modifier.weight(1f))
+                    FinanceMetric("Я должен", state.totalMinor(TransactionType.I_OWE), currency, transactionTypeColor(TransactionType.I_OWE), Modifier.weight(1f))
                 }
             }
             item {
@@ -158,10 +176,23 @@ internal fun FinanceScreen(
                     data = state.data,
                     onSelect = {
                         presetCategory = it
+                        presetType = TransactionType.EXPENSE
                         showAdd = true
                     },
                     onAdd = { showAddCategory = true },
                     onManage = { showManageCategories = true },
+                )
+            }
+            item {
+                FriendSection(
+                    data = state.data,
+                    onSelect = {
+                        presetCategory = it
+                        presetType = TransactionType.OWED_TO_ME
+                        showAdd = true
+                    },
+                    onAdd = { showAddFriend = true },
+                    onManage = { showManageFriends = true },
                 )
             }
             item {
@@ -184,7 +215,13 @@ internal fun FinanceScreen(
                         transaction,
                         currency,
                         state.data.rates,
-                        FinanceCategoryPalette[state.data.categoryColorIndex(transaction.category)],
+                        FinanceCategoryPalette[
+                            if (transaction.type == TransactionType.OWED_TO_ME || transaction.type == TransactionType.I_OWE) {
+                                state.data.friendColorIndex(transaction.category)
+                            } else {
+                                state.data.categoryColorIndex(transaction.category)
+                            }
+                        ],
                     ) { selectedTransaction = transaction }
                 }
             }
@@ -192,13 +229,15 @@ internal fun FinanceScreen(
     }
 
     if (showAdd) AddTransactionDialog(
-        categories = state.data.categories,
+        data = state.data,
         initialCategory = presetCategory,
-        onDismiss = { showAdd = false; presetCategory = "" },
-    ) { title, amount, itemCurrency, type, category ->
-        onAdd(title, amount, itemCurrency, type, category)
+        initialType = presetType,
+        onDismiss = { showAdd = false; presetCategory = ""; presetType = TransactionType.EXPENSE },
+    ) { amount, itemCurrency, type, target ->
+        onAdd(amount, itemCurrency, type, target)
         showAdd = false
         presetCategory = ""
+        presetType = TransactionType.EXPENSE
     }
     if (showAddCategory) CategoryNameDialog(
         onDismiss = { showAddCategory = false },
@@ -209,6 +248,18 @@ internal fun FinanceScreen(
         onDismiss = { showManageCategories = false },
         onDelete = onDeleteCategory,
         onColorChange = onCategoryColorChange,
+    )
+    if (showAddFriend) NameDialog(
+        title = "Новый друг",
+        label = "Имя",
+        onDismiss = { showAddFriend = false },
+        onConfirm = { onAddFriend(it); showAddFriend = false },
+    )
+    if (showManageFriends) FriendManagerDialog(
+        data = state.data,
+        onDismiss = { showManageFriends = false },
+        onDelete = onDeleteFriend,
+        onColorChange = onFriendColorChange,
     )
     if (showBudget) AmountDialog("Бюджет в ${currency.code}", currency, state.budgetMinor(), { showBudget = false }) {
         onBudgetChange(currency, it); showBudget = false
@@ -222,8 +273,8 @@ internal fun FinanceScreen(
     selectedTransaction?.let { transaction ->
         AlertDialog(
             onDismissRequest = { selectedTransaction = null },
-            title = { Text(transaction.title) },
-            text = { Text("${transaction.type.title} · ${transaction.category}\n${formatMoney(transaction.amountMinor, transaction.currency)}") },
+            title = { Text(transaction.category) },
+            text = { Text("${transaction.type.title}\n${formatMoney(transaction.amountMinor, transaction.currency)}") },
             confirmButton = {
                 Button(
                     onClick = { onDelete(transaction.id); selectedTransaction = null },
@@ -271,6 +322,48 @@ private fun CategorySection(
         }
         Text(
             "Нажмите категорию, чтобы быстрее добавить операцию.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun FriendSection(
+    data: FinanceData,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit,
+    onManage: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Друзья", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            TextButton(onClick = onManage) { Text("Настроить") }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            data.friends.forEach { friend ->
+                val color = FinanceCategoryPalette[data.friendColorIndex(friend)]
+                Surface(
+                    modifier = Modifier.clickable { onSelect(friend) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = color.copy(alpha = 0.20f),
+                ) {
+                    Text(
+                        friend,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                        fontWeight = FontWeight.SemiBold,
+                        color = color,
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.size(44.dp).clickable(onClick = onAdd),
+                shape = CircleShape,
+                color = Color(0xFFA8FF00),
+            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "Добавить друга") } }
+        }
+        Text(
+            "Выберите человека, чтобы сразу записать долг.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -350,7 +443,7 @@ private fun TransactionCard(
     categoryColor: Color,
     onClick: () -> Unit,
 ) {
-    val color = categoryColor
+    val typeColor = transactionTypeColor(item.type)
     val icon: ImageVector = when (item.type) {
         TransactionType.INCOME -> Icons.Rounded.ArrowDownward
         TransactionType.EXPENSE -> Icons.Rounded.ArrowUpward
@@ -358,16 +451,16 @@ private fun TransactionCard(
     }
     Card(onClick = onClick, shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = color.copy(alpha = 0.18f), modifier = Modifier.size(46.dp)) {
-                Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = color) }
+            Surface(shape = CircleShape, color = typeColor.copy(alpha = 0.18f), modifier = Modifier.size(46.dp)) {
+                Box(contentAlignment = Alignment.Center) { Icon(icon, null, tint = typeColor) }
             }
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(item.title, fontWeight = FontWeight.Bold)
-                Text("${item.type.title} · ${item.category}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+                Text(item.category, fontWeight = FontWeight.Bold, color = categoryColor)
+                Text(item.type.title, color = typeColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(formatMoney(item.amountMinor, item.currency), fontWeight = FontWeight.ExtraBold, color = color)
+                Text(formatMoney(item.amountMinor, item.currency), fontWeight = FontWeight.ExtraBold, color = typeColor)
                 if (item.currency != display) {
                     Text(
                         convertMinor(item.amountMinor, item.currency, display, rates)?.let { "≈ ${formatMoney(it, display)}" } ?: "курс не задан",
@@ -382,59 +475,159 @@ private fun TransactionCard(
 
 @Composable
 private fun AddTransactionDialog(
-    categories: List<String>,
+    data: FinanceData,
     initialCategory: String,
+    initialType: TransactionType,
     onDismiss: () -> Unit,
-    onConfirm: (String, Long, MoneyCurrency, TransactionType, String) -> Unit,
+    onConfirm: (Long, MoneyCurrency, TransactionType, String) -> Unit,
 ) {
-    var title by remember { mutableStateOf("") }
+    val categories = data.categories
+    val friends = data.friends
     var amount by remember { mutableStateOf("") }
-    var category by remember(initialCategory) { mutableStateOf(initialCategory) }
+    var target by remember(initialCategory) { mutableStateOf(initialCategory) }
     var currency by remember { mutableStateOf(MoneyCurrency.USD) }
-    var type by remember { mutableStateOf(TransactionType.EXPENSE) }
+    var type by remember(initialType) { mutableStateOf(initialType) }
     val amountMinor = parseAmountMinor(amount)
+    val targets = if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) friends else categories
+    val selectedTypeColor = transactionTypeColor(type)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новая операция", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TextField(title, { title = it }, label = { Text("Название") }, singleLine = true)
-                TextField(amount, { amount = it }, label = { Text("Сумма") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Сумма") },
+                    suffix = { Text(currency.symbol, color = selectedTypeColor, fontWeight = FontWeight.ExtraBold) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = selectedTypeColor,
+                        focusedContainerColor = selectedTypeColor.copy(alpha = 0.08f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
                 CurrencySelector(currency) { currency = it }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TransactionType.entries.forEach { item ->
+                        val itemColor = transactionTypeColor(item)
                         Surface(
                             shape = RoundedCornerShape(13.dp),
-                            color = if (type == item) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.clickable { type = item },
-                        ) { Text(item.title, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp), fontWeight = FontWeight.SemiBold) }
+                            color = if (type == item) itemColor.copy(alpha = 0.24f) else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.border(
+                                if (type == item) 1.dp else 0.dp,
+                                if (type == item) itemColor.copy(alpha = 0.8f) else Color.Transparent,
+                                RoundedCornerShape(13.dp),
+                            ).clickable {
+                                type = item
+                                target = if (item == TransactionType.OWED_TO_ME || item == TransactionType.I_OWE) {
+                                    friends.firstOrNull().orEmpty()
+                                } else {
+                                    categories.firstOrNull().orEmpty()
+                                }
+                            },
+                        ) {
+                            Text(
+                                item.title,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                fontWeight = FontWeight.Bold,
+                                color = if (type == item) itemColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
+                Text(
+                    if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) "Кто" else "Категория",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    categories.forEach { item ->
+                    targets.forEach { item ->
+                        val itemColor = FinanceCategoryPalette[
+                            if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) {
+                                data.friendColorIndex(item)
+                            } else {
+                                data.categoryColorIndex(item)
+                            }
+                        ]
                         Surface(
                             shape = RoundedCornerShape(13.dp),
-                            color = if (category == item) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.clickable { category = item },
-                        ) { Text(item, modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)) }
+                            color = itemColor.copy(alpha = if (target == item) 0.24f else 0.10f),
+                            modifier = Modifier
+                                .border(
+                                    if (target == item) 1.dp else 0.dp,
+                                    if (target == item) itemColor else Color.Transparent,
+                                    RoundedCornerShape(13.dp),
+                                )
+                                .clickable { target = item },
+                        ) {
+                            Text(
+                                item,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                color = if (target == item) itemColor else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (target == item) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
                     }
                 }
-                TextField(category, { category = it }, label = { Text("Категория или имя друга") }, singleLine = true)
+                if (targets.isEmpty()) {
+                    Text(
+                        if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) "Сначала добавьте друга на экране финансов."
+                        else "Сначала добавьте категорию на экране финансов.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(title, amountMinor, currency, type, category) }, enabled = title.isNotBlank() && amountMinor > 0) { Text("Добавить") } },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(amountMinor, currency, type, target) },
+                enabled = target.isNotBlank() && amountMinor > 0,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+            ) { Text("Добавить") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
 
 @Composable
 private fun CategoryNameDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    NameDialog("Новая категория", "Название категории", onDismiss, onConfirm)
+}
+
+@Composable
+private fun NameDialog(
+    title: String,
+    label: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
     var value by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая категория") },
-        text = { TextField(value, { value = it }, label = { Text("Название") }, singleLine = true) },
-        confirmButton = { Button(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text("Добавить") } },
+        title = { Text(title, fontWeight = FontWeight.Bold) },
+        text = {
+            OutlinedTextField(
+                value = value,
+                onValueChange = { value = it },
+                label = { Text(label) },
+                singleLine = true,
+                shape = RoundedCornerShape(18.dp),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(value) },
+                enabled = value.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+            ) { Text("Добавить") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }
@@ -481,6 +674,54 @@ private fun CategoryManagerDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
     )
+}
+
+@Composable
+private fun FriendManagerDialog(
+    data: FinanceData,
+    onDismiss: () -> Unit,
+    onDelete: (String) -> Unit,
+    onColorChange: (String, Int) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Друзья") },
+        text = {
+            Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState())) {
+                data.friends.forEach { friend ->
+                    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(friend, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                            TextButton(onClick = { onDelete(friend) }) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Удалить $friend", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FinanceCategoryPalette.forEachIndexed { index, color ->
+                                val selected = data.friendColorIndex(friend) == index
+                                Box(
+                                    Modifier.size(if (selected) 29.dp else 25.dp).clip(CircleShape).background(color)
+                                        .clickable { onColorChange(friend, index) }
+                                        .then(
+                                            if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
+                                            else Modifier,
+                                        ),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
+    )
+}
+
+private fun transactionTypeColor(type: TransactionType): Color = when (type) {
+    TransactionType.EXPENSE -> Color(0xFFFF5E6C)
+    TransactionType.INCOME -> Color(0xFF52D273)
+    TransactionType.OWED_TO_ME -> Color(0xFFA889FF)
+    TransactionType.I_OWE -> Color(0xFFFFA95A)
 }
 
 internal val FinanceCategoryPalette = listOf(
