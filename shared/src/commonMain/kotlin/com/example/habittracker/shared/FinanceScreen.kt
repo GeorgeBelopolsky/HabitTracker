@@ -39,7 +39,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -97,8 +96,15 @@ internal fun FinanceScreen(
     val expense = state.totalMinor(TransactionType.EXPENSE)
     val income = state.totalMinor(TransactionType.INCOME)
     val budget = state.budgetMinor()
-    val spendable = budget + income
-    val balance = spendable - expense
+    val balance = budget + income - expense
+    val currentDate = calendarDate(currentEpochDay())
+    fun currentMonthTotal(type: TransactionType): Long = state.data.transactions.filter { transaction ->
+        val date = calendarDate(transaction.epochDay)
+        transaction.type == type && date.year == currentDate.year && date.month == currentDate.month
+    }.mapNotNull { transaction ->
+        convertMinor(transaction.amountMinor, transaction.currency, currency, state.data.rates)
+    }.sum()
+    val monthChange = currentMonthTotal(TransactionType.INCOME) - currentMonthTotal(TransactionType.EXPENSE)
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -124,7 +130,7 @@ internal fun FinanceScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Финансы", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
-                        Text("Бюджет, операции и долги", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("Остаток, операции и долги", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { showRates = true }) {
                         Icon(Icons.Rounded.CurrencyExchange, null)
@@ -141,29 +147,38 @@ internal fun FinanceScreen(
                     shape = RoundedCornerShape(28.dp),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Доступно", color = Color.White.copy(alpha = 0.7f))
+                        Text("Общий остаток", color = Color.White.copy(alpha = 0.7f))
                         Text(formatMoney(balance, currency), color = Color(0xFFFFDD2D), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
-                        val progress = if (spendable <= 0) 0f else (expense.toFloat() / spendable).coerceIn(0f, 1f)
-                        LinearProgressIndicator(
-                            progress = { progress },
-                            modifier = Modifier.fillMaxWidth().height(9.dp).clip(CircleShape),
-                            color = if (progress >= 1f) Color(0xFFFF6B6B) else Color(0xFFFFDD2D),
-                            trackColor = Color.White.copy(alpha = 0.16f),
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                if (spendable > 0) "Потрачено ${formatMoney(expense, currency)} из ${formatMoney(spendable, currency)}"
-                                else "Бюджет ещё не задан",
-                                color = Color.White.copy(alpha = 0.78f),
-                                modifier = Modifier.weight(1f),
-                            )
-                            TextButton(onClick = { showBudget = true }) {
-                                Icon(Icons.Rounded.Edit, null, tint = Color(0xFFFFDD2D))
-                                Text("Изменить", color = Color(0xFFFFDD2D))
+                        Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = 0.06f)) {
+                            Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Исходный остаток", color = Color.White.copy(alpha = 0.56f), style = MaterialTheme.typography.labelMedium)
+                                    Text(formatMoney(budget, currency), color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                                Column(Modifier.weight(1f)) {
+                                    Text("За ${monthName(currentDate.month).lowercase()}", color = Color.White.copy(alpha = 0.56f), style = MaterialTheme.typography.labelMedium)
+                                    Text(
+                                        (if (monthChange > 0) "+" else "") + formatMoney(monthChange, currency),
+                                        color = when { monthChange > 0 -> Color(0xFF52D273); monthChange < 0 -> Color(0xFFFF5E6C); else -> Color.White },
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                }
+                                TextButton(onClick = { showBudget = true }) {
+                                    Icon(Icons.Rounded.Edit, null, tint = Color(0xFFFFDD2D))
                             }
                         }
                     }
+                        Text(
+                            when {
+                                monthChange > 0 -> "Сбережения в этом месяце увеличились."
+                                monthChange < 0 -> "Расходы выше доходов — стоит проверить категории трат."
+                                else -> "В этом месяце сбережения пока не изменились."
+                            },
+                            color = Color.White.copy(alpha = 0.68f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                 }
+            }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -275,7 +290,7 @@ internal fun FinanceScreen(
         onDelete = onDeleteFriend,
         onColorChange = onFriendColorChange,
     )
-    if (showBudget) AmountDialog("Бюджет в ${currency.code}", currency, state.budgetMinor(), { showBudget = false }) {
+    if (showBudget) AmountDialog("Исходный остаток", currency, state.budgetMinor(), { showBudget = false }) {
         onBudgetChange(currency, it); showBudget = false
     }
     if (showRates) RatesDialog(
@@ -958,9 +973,43 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
     val parsed = parseAmountMinor(value)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { TextField(value, { value = it }, suffix = { Text(currency.symbol) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true) },
-        confirmButton = { Button(onClick = { onConfirm(parsed) }, enabled = parsed >= 0) { Text("Сохранить") } },
+        title = { Text(title, fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Укажите, сколько денег у вас было до добавления доходов и расходов.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
+                    suffix = { Text(currency.symbol, color = Color(0xFFFFDD2D), fontWeight = FontWeight.ExtraBold) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFFFDD2D),
+                        focusedContainerColor = Color(0xFFFFDD2D).copy(alpha = 0.07f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Текущая валюта: ${currency.code}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(parsed) },
+                enabled = value.isNotBlank() && parsed >= 0,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+            ) { Text("Сохранить") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

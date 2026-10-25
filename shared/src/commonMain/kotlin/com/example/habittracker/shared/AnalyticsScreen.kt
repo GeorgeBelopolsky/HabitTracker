@@ -312,7 +312,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
         FinanceWeekChart(dailyExpenses, state.data.displayCurrency)
     }
     item {
-        SectionTitle("Баланс по месяцам", "профицит или дефицит")
+        SectionTitle("Динамика сбережений", "по месяцам")
         Spacer(Modifier.height(10.dp))
         MonthlyBalanceCard(monthly, state.data.displayCurrency)
     }
@@ -381,7 +381,11 @@ private fun MonthlyBalanceCard(items: List<MonthlyFinanceSummary>, currency: Mon
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            when { positive -> "Профицит"; negative -> "Дефицит"; else -> "Баланс" },
+                            when {
+                                positive -> "Сбережения выросли"
+                                negative -> "Сбережения снизились"
+                                else -> "Без изменений"
+                            },
                             color = when { positive -> AnalyticsIncome; negative -> AnalyticsExpense; else -> AnalyticsYellow },
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
