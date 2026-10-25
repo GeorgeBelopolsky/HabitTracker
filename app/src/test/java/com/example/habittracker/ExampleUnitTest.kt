@@ -1,17 +1,29 @@
 package com.example.habittracker
 
+import com.example.habittracker.shared.Habit
+import com.example.habittracker.shared.currentStreak
+import com.example.habittracker.shared.dayOfMonth
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
-import org.junit.Assert.*
-
-/**
- * Example local unit test, which will execute on the development machine (host).
- *
- * See [testing documentation](http://d.android.com/tools/testing).
- */
-class ExampleUnitTest {
+class HabitCalculationsTest {
     @Test
-    fun addition_isCorrect() {
-        assertEquals(4, 2 + 2)
+    fun streakCountsConsecutiveDaysEndingToday() {
+        val habit = Habit(
+            id = "test",
+            title = "Test",
+            emoji = "✓",
+            colorIndex = 0,
+            createdAtEpochDay = 90,
+            completedEpochDays = setOf(96, 98, 99, 100),
+        )
+
+        assertEquals(3, habit.currentStreak(today = 100))
+    }
+
+    @Test
+    fun epochDayUsesGregorianCalendar() {
+        assertEquals(1, dayOfMonth(0))
+        assertEquals(29, dayOfMonth(19_782)) // 2024-02-29
     }
 }
