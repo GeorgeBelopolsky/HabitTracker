@@ -6,6 +6,10 @@ import kotlinx.serialization.json.Json
 interface HabitStorage {
     fun read(): String?
     fun write(value: String)
+    fun readFinance(): String? = null
+    fun writeFinance(value: String) = Unit
+    fun isStarterPackInstalled(): Boolean = false
+    fun markStarterPackInstalled() = Unit
 }
 
 interface HabitRepository {
@@ -22,9 +26,17 @@ class LocalHabitRepository(
     }
 
     override suspend fun load(): List<Habit> {
-        val raw = storage.read() ?: return starterHabits()
-        return runCatching { json.decodeFromString<List<Habit>>(raw) }
-            .getOrElse { starterHabits() }
+        val decoded = storage.read()?.let { raw ->
+            runCatching { json.decodeFromString<List<Habit>>(raw) }.getOrNull()
+        }.orEmpty()
+        val result = if (storage.isStarterPackInstalled()) {
+            decoded
+        } else {
+            val starters = starterHabits()
+            decoded + starters.filterNot { starter -> decoded.any { it.id == starter.id } }
+        }
+        storage.markStarterPackInstalled()
+        return result
     }
 
     override suspend fun save(habits: List<Habit>) {
@@ -41,6 +53,7 @@ class LocalHabitRepository(
                 colorIndex = 0,
                 createdAtEpochDay = today - 6,
                 weeklyTargetDays = 7,
+                scheduledWeekdays = (1..7).toSet(),
                 completedEpochDays = setOf(today - 3, today - 2, today - 1),
             ),
             Habit(
@@ -50,6 +63,7 @@ class LocalHabitRepository(
                 colorIndex = 1,
                 createdAtEpochDay = today - 6,
                 weeklyTargetDays = 5,
+                scheduledWeekdays = setOf(1, 2, 3, 4, 5),
                 completedEpochDays = setOf(today - 2, today - 1, today),
             ),
             Habit(
@@ -59,6 +73,7 @@ class LocalHabitRepository(
                 colorIndex = 2,
                 createdAtEpochDay = today - 6,
                 weeklyTargetDays = 3,
+                scheduledWeekdays = setOf(1, 3, 5),
                 completedEpochDays = setOf(today - 4, today - 2),
             ),
         )

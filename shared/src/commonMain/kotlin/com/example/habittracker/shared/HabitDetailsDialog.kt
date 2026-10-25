@@ -48,7 +48,7 @@ internal fun HabitDetailsDialog(
     today: Long,
     onDismiss: () -> Unit,
     onToggleDay: (Long) -> Unit,
-    onWeeklyTargetChange: (Int) -> Unit,
+    onScheduleChange: (Set<Int>) -> Unit,
     onDelete: () -> Unit,
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -98,7 +98,7 @@ internal fun HabitDetailsDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Прогресс недели", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Text(
-                                "$completedThisWeek/${habit.weeklyTargetDays}",
+                                "$completedThisWeek/${habit.schedule().size}",
                                 color = color,
                                 fontWeight = FontWeight.ExtraBold,
                             )
@@ -113,9 +113,9 @@ internal fun HabitDetailsDialog(
                     }
                 }
 
-                WeeklyTargetSelector(
-                    value = habit.weeklyTargetDays,
-                    onValueChange = onWeeklyTargetChange,
+                WeekdaySelector(
+                    value = habit.schedule(),
+                    onValueChange = onScheduleChange,
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -248,16 +248,18 @@ private fun CalendarDay(
         return
     }
     val completed = habit.isCompleted(day)
-    val active = day in habit.createdAtEpochDay..today
+    val scheduled = habit.isScheduledOn(day)
+    val active = day in habit.createdAtEpochDay..today && scheduled
     val background = when {
         completed -> color
         active && day < today -> MaterialTheme.colorScheme.errorContainer
-        day == today -> MaterialTheme.colorScheme.primaryContainer
+        day == today && scheduled -> MaterialTheme.colorScheme.primaryContainer
         else -> Color.Transparent
     }
     val contentColor = when {
         completed -> Color(0xFF173C32)
         active && day < today -> MaterialTheme.colorScheme.onErrorContainer
+        !scheduled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
         else -> MaterialTheme.colorScheme.onSurface
     }
 

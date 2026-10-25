@@ -19,13 +19,15 @@ data class HabitTrackerState(
         get() {
             val weekStart = startOfWeek(today)
             val week = (0L..6L).map { weekStart + it }.toSet()
+            val todayHabits = habits.filter { it.isScheduledOn(today) }
             return HabitStats(
-                completedToday = habits.count { it.isCompleted(today) },
-                total = habits.size,
+                completedToday = todayHabits.count { it.isCompleted(today) },
+                total = todayHabits.size,
                 weeklyCompletions = habits.sumOf { habit ->
-                    habit.completedEpochDays.count { it in week }.coerceAtMost(habit.weeklyTargetDays)
+                    habit.completedEpochDays.count { it in week && habit.isScheduledOn(it) }
+                        .coerceAtMost(habit.schedule().size)
                 },
-                weeklyTarget = habits.sumOf { it.weeklyTargetDays },
+                weeklyTarget = habits.sumOf { it.schedule().size },
             )
         }
 
@@ -65,7 +67,7 @@ class HabitStore(
         mutableState.value = mutableState.value.copy(selectedHabitId = null)
     }
 
-    suspend fun addHabit(title: String, emoji: String, colorIndex: Int, weeklyTargetDays: Int) = mutex.withLock {
+    suspend fun addHabit(title: String, emoji: String, colorIndex: Int, scheduledWeekdays: Set<Int>) = mutex.withLock {
         if (title.isBlank()) return@withLock
         val updated = mutableState.value.habits + Habit(
             id = newHabitId(),
@@ -73,7 +75,8 @@ class HabitStore(
             emoji = emoji,
             colorIndex = colorIndex,
             createdAtEpochDay = currentEpochDay(),
-            weeklyTargetDays = weeklyTargetDays.coerceIn(1, 7),
+            weeklyTargetDays = scheduledWeekdays.size.coerceIn(1, 7),
+            scheduledWeekdays = scheduledWeekdays.ifEmpty { setOf(1) },
         )
         repository.save(updated)
         mutableState.value = mutableState.value.copy(habits = updated, showAddDialog = false)
@@ -95,9 +98,12 @@ class HabitStore(
     }
 
 
-    suspend fun updateWeeklyTarget(habitId: String, weeklyTargetDays: Int) = mutex.withLock {
+    suspend fun updateSchedule(habitId: String, scheduledWeekdays: Set<Int>) = mutex.withLock {
         val updated = mutableState.value.habits.map { habit ->
-            if (habit.id == habitId) habit.copy(weeklyTargetDays = weeklyTargetDays.coerceIn(1, 7))
+            if (habit.id == habitId) habit.copy(
+                weeklyTargetDays = scheduledWeekdays.size.coerceIn(1, 7),
+                scheduledWeekdays = scheduledWeekdays.ifEmpty { setOf(1) },
+            )
             else habit
         }
         repository.save(updated)

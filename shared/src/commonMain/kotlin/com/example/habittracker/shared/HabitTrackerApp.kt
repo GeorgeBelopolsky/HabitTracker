@@ -82,8 +82,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-private val Accent = Color(0xFF6C5CE7)
-private val AccentDark = Color(0xFFA99DF4)
+private val Accent = Color(0xFF4F8F00)
+private val AccentDark = Color(0xFFA8FF00)
 private val AppBackground = Color(0xFFF7F7FB)
 private val DarkBackground = Color(0xFF121218)
 internal val HabitColors = listOf(
@@ -147,25 +147,44 @@ private fun legacyIconKey(value: String): String = when (value) {
 @Composable
 fun HabitTrackerApp(storage: HabitStorage) {
     val store = remember(storage) { HabitStore(LocalHabitRepository(storage)) }
+    val financeStore = remember(storage) { FinanceStore(FinanceRepository(storage)) }
     val state by store.state.collectAsState()
+    val financeState by financeStore.state.collectAsState()
     val scope = rememberCoroutineScope()
+    var section by remember { mutableStateOf(AppSection.HABITS) }
 
     LaunchedEffect(store) { store.load() }
+    LaunchedEffect(financeStore) { financeStore.load() }
 
     HabitTrackerTheme {
-        HabitTrackerScreen(
-            state = state,
-            onSelectDay = store::selectDay,
-            onToggle = { id -> scope.launch { store.toggle(id) } },
-            onHabitClick = store::openHabit,
-            onAddClick = store::openAddDialog,
-        )
+        Box(Modifier.fillMaxSize()) {
+            when (section) {
+                AppSection.HABITS -> HabitTrackerScreen(
+                    state = state,
+                    onSelectDay = store::selectDay,
+                    onToggle = { id -> scope.launch { store.toggle(id) } },
+                    onHabitClick = store::openHabit,
+                    onAddClick = store::openAddDialog,
+                )
+                AppSection.FINANCE -> FinanceScreen(
+                    state = financeState,
+                    onCurrencyChange = { scope.launch { financeStore.selectCurrency(it) } },
+                    onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
+                    onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
+                    onAdd = { title, amount, currency, type, category ->
+                        scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
+                    },
+                    onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
+                )
+            }
+            AppBottomBar(section, { section = it }, Modifier.align(Alignment.BottomCenter))
+        }
 
         if (state.showAddDialog) {
             AddHabitDialog(
                 onDismiss = store::closeAddDialog,
-                onConfirm = { title, emoji, color, weeklyTarget ->
-                    scope.launch { store.addHabit(title, emoji, color, weeklyTarget) }
+                onConfirm = { title, emoji, color, scheduledDays ->
+                    scope.launch { store.addHabit(title, emoji, color, scheduledDays) }
                 },
             )
         }
@@ -176,12 +195,53 @@ fun HabitTrackerApp(storage: HabitStorage) {
                 today = state.today,
                 onDismiss = store::closeHabit,
                 onToggleDay = { day -> scope.launch { store.toggle(habit.id, day) } },
-                onWeeklyTargetChange = { target ->
-                    scope.launch { store.updateWeeklyTarget(habit.id, target) }
+                onScheduleChange = { scheduledDays ->
+                    scope.launch { store.updateSchedule(habit.id, scheduledDays) }
                 },
                 onDelete = { scope.launch { store.delete(habit.id) } },
             )
         }
+    }
+}
+
+private enum class AppSection { HABITS, FINANCE }
+
+@Composable
+private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(30.dp),
+        color = Color(0xEE11130F),
+        shadowElevation = 12.dp,
+    ) {
+        Row(Modifier.padding(7.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            BottomBarItem(
+                label = "Привычки",
+                icon = Icons.Rounded.TrackChanges,
+                selected = selected == AppSection.HABITS,
+                onClick = { onSelect(AppSection.HABITS) },
+                modifier = Modifier.weight(1f),
+            )
+            BottomBarItem(
+                label = "Финансы",
+                icon = Icons.Rounded.Savings,
+                selected = selected == AppSection.FINANCE,
+                onClick = { onSelect(AppSection.FINANCE) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
+    val color = if (selected) Color(0xFFA8FF00) else Color.White.copy(alpha = 0.58f)
+    Column(
+        modifier = modifier.clip(RoundedCornerShape(22.dp)).clickable(onClick = onClick).padding(vertical = 7.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(22.dp))
+        Text(label, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -212,6 +272,7 @@ private fun HabitTrackerScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onAddClick,
+                modifier = Modifier.padding(bottom = 72.dp),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
@@ -246,10 +307,13 @@ private fun HabitTrackerScreen(
                         modifier = Modifier.padding(top = 6.dp),
                     )
                 }
+                val visibleHabits = state.habits.filter { it.isScheduledOn(state.selectedDay) }
                 if (state.habits.isEmpty()) {
                     item { EmptyState(onAddClick) }
+                } else if (visibleHabits.isEmpty()) {
+                    item { DayOffState() }
                 } else {
-                    items(state.habits, key = { it.id }) { habit ->
+                    items(visibleHabits, key = { it.id }) { habit ->
                         HabitCard(
                             habit = habit,
                             day = state.selectedDay,
@@ -374,7 +438,7 @@ private fun HabitCard(
     val completed = habit.isCompleted(day)
     val color = HabitColors[habit.colorIndex.mod(HabitColors.size)]
     val completedThisWeek = habit.completedInWeek(today)
-    val goalReached = completedThisWeek >= habit.weeklyTargetDays
+    val goalReached = completedThisWeek >= habit.schedule().size
     Card(
         onClick = onOpen,
         shape = RoundedCornerShape(24.dp),
@@ -383,16 +447,24 @@ private fun HabitCard(
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(color.copy(alpha = 0.25f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = habitIcon(habit.emoji),
-                        contentDescription = null,
-                        tint = color,
-                        modifier = Modifier.size(27.dp),
+                Box(modifier = Modifier.size(62.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { habit.weeklyProgress(today) },
+                        modifier = Modifier.fillMaxSize(),
+                        color = color,
+                        trackColor = color.copy(alpha = 0.18f),
+                        strokeWidth = 5.dp,
                     )
+                    Surface(shape = CircleShape, color = color.copy(alpha = 0.15f), modifier = Modifier.size(48.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = habitIcon(habit.emoji),
+                                contentDescription = null,
+                                tint = color,
+                                modifier = Modifier.size(25.dp),
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
@@ -427,7 +499,7 @@ private fun HabitCard(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    "$completedThisWeek/${habit.weeklyTargetDays} в неделю",
+                    "$completedThisWeek/${habit.schedule().size} по плану",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -456,14 +528,37 @@ private fun EmptyState(onAddClick: () -> Unit) {
 }
 
 @Composable
+private fun DayOffState() {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 42.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.SelfImprovement,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(48.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("На этот день ничего не запланировано", fontWeight = FontWeight.Bold)
+        Text(
+            "Можно отдохнуть или открыть привычку в другой день.",
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
+}
+
+@Composable
 private fun AddHabitDialog(
     onDismiss: () -> Unit,
-    onConfirm: (String, String, Int, Int) -> Unit,
+    onConfirm: (String, String, Int, Set<Int>) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var emoji by remember { mutableStateOf(HabitIcons.first().key) }
     var colorIndex by remember { mutableIntStateOf(0) }
-    var weeklyTarget by remember { mutableIntStateOf(3) }
+    var scheduledDays by remember { mutableStateOf(setOf(1, 3, 5)) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -517,14 +612,14 @@ private fun AddHabitDialog(
                         }
                     }
                 }
-                WeeklyTargetSelector(
-                    value = weeklyTarget,
-                    onValueChange = { weeklyTarget = it },
+                WeekdaySelector(
+                    value = scheduledDays,
+                    onValueChange = { scheduledDays = it },
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(title, emoji, colorIndex, weeklyTarget) }, enabled = title.isNotBlank()) {
+            Button(onClick = { onConfirm(title, emoji, colorIndex, scheduledDays) }, enabled = title.isNotBlank()) {
                 Text("Добавить")
             }
         },
@@ -533,29 +628,41 @@ private fun AddHabitDialog(
 }
 
 @Composable
-internal fun WeeklyTargetSelector(value: Int, onValueChange: (Int) -> Unit) {
+internal fun WeekdaySelector(value: Set<Int>, onValueChange: (Set<Int>) -> Unit) {
+    val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Цель: $value ${daysWord(value)} в неделю", style = MaterialTheme.typography.labelLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            (1..7).forEach { days ->
+        Text("Дни недели", style = MaterialTheme.typography.labelLarge)
+        labels.chunked(4).forEachIndexed { rowIndex, rowLabels ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                rowLabels.forEachIndexed { columnIndex, label ->
+                    val day = rowIndex * 4 + columnIndex + 1
+                    val selected = day in value
                 Surface(
-                    modifier = Modifier.size(38.dp).clickable { onValueChange(days) },
-                    shape = CircleShape,
-                    color = if (days == value) MaterialTheme.colorScheme.primary
+                        modifier = Modifier.weight(1f).height(42.dp).clickable {
+                            val updated = if (selected) value - day else value + day
+                            if (updated.isNotEmpty()) onValueChange(updated)
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                    color = if (selected) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.surfaceVariant,
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            days.toString(),
-                            color = if (days == value) MaterialTheme.colorScheme.onPrimary
+                                label,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Bold,
                         )
                     }
                 }
+                }
+                repeat(4 - rowLabels.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+        Text(
+            "Привычка будет показана только в выбранные дни.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
-
-private fun daysWord(value: Int): String = if (value == 1) "день" else if (value in 2..4) "дня" else "дней"

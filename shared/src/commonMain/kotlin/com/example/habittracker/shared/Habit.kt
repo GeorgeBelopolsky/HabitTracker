@@ -10,6 +10,7 @@ data class Habit(
     val colorIndex: Int,
     val createdAtEpochDay: Long,
     val weeklyTargetDays: Int = 7,
+    val scheduledWeekdays: Set<Int> = emptySet(),
     val completedEpochDays: Set<Long> = emptySet(),
 )
 
@@ -22,13 +23,19 @@ data class HabitStats(
 
 fun Habit.isCompleted(day: Long): Boolean = day in completedEpochDays
 
+fun Habit.schedule(): Set<Int> = scheduledWeekdays.ifEmpty {
+    (1..weeklyTargetDays.coerceIn(1, 7)).toSet()
+}
+
+fun Habit.isScheduledOn(day: Long): Boolean = isoDayOfWeek(day) in schedule()
+
 fun Habit.completedInWeek(day: Long): Int {
     val start = startOfWeek(day)
-    return completedEpochDays.count { it in start..(start + 6) }
+    return completedEpochDays.count { it in start..(start + 6) && isScheduledOn(it) }
 }
 
 fun Habit.weeklyProgress(day: Long): Float =
-    (completedInWeek(day).toFloat() / weeklyTargetDays.coerceIn(1, 7)).coerceIn(0f, 1f)
+    (completedInWeek(day).toFloat() / schedule().size.coerceAtLeast(1)).coerceIn(0f, 1f)
 
 fun Habit.currentStreak(today: Long): Int {
     var day = today
@@ -42,18 +49,18 @@ fun Habit.currentStreak(today: Long): Int {
 
 fun Habit.successfulWeekStreak(today: Long): Int {
     var weekStart = startOfWeek(today)
-    if (completedInWeek(today) < weeklyTargetDays) weekStart -= 7
+    if (completedInWeek(today) < schedule().size) weekStart -= 7
     var streak = 0
     while (weekStart + 6 >= createdAtEpochDay) {
-        val completions = completedEpochDays.count { it in weekStart..(weekStart + 6) }
-        if (completions < weeklyTargetDays) break
+        val completions = completedEpochDays.count { it in weekStart..(weekStart + 6) && isScheduledOn(it) }
+        if (completions < schedule().size) break
         streak += 1
         weekStart -= 7
     }
     return streak
 }
 
-fun Habit.streakText(today: Long): String = if (weeklyTargetDays == 7) {
+fun Habit.streakText(today: Long): String = if (schedule().size == 7) {
     "Серия: ${currentStreak(today)} дн."
 } else {
     "Успешных недель подряд: ${successfulWeekStreak(today)}"

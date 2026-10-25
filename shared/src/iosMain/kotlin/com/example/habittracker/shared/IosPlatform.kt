@@ -4,6 +4,8 @@ import platform.Foundation.NSDate
 import platform.Foundation.NSTimeZone
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.NSUUID
+import platform.Foundation.localTimeZone
+import platform.Foundation.timeIntervalSince1970
 
 class IosHabitStorage : HabitStorage {
     private val defaults = NSUserDefaults.standardUserDefaults
@@ -12,6 +14,18 @@ class IosHabitStorage : HabitStorage {
 
     override fun write(value: String) {
         defaults.setObject(value, forKey = "habits")
+    }
+
+    override fun readFinance(): String? = defaults.stringForKey("finance")
+
+    override fun writeFinance(value: String) {
+        defaults.setObject(value, forKey = "finance")
+    }
+
+    override fun isStarterPackInstalled(): Boolean = defaults.boolForKey("starter_pack_v2")
+
+    override fun markStarterPackInstalled() {
+        defaults.setBool(true, forKey = "starter_pack_v2")
     }
 }
 
