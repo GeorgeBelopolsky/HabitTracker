@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -71,6 +72,8 @@ internal fun FinanceScreen(
     onRefreshRates: () -> Unit,
     onAdd: (Long, MoneyCurrency, TransactionType, String) -> Unit,
     onDelete: (String) -> Unit,
+    onUpdate: (String, Long, MoneyCurrency, String) -> Unit,
+    onToggleSettled: (String) -> Unit,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (String) -> Unit,
     onCategoryColorChange: (String, Int) -> Unit,
@@ -88,11 +91,14 @@ internal fun FinanceScreen(
     var showBudget by remember { mutableStateOf(false) }
     var showRates by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<MoneyTransaction?>(null) }
+    var editingDebt by remember { mutableStateOf<MoneyTransaction?>(null) }
+    var analyticsType by remember { mutableStateOf<TransactionType?>(null) }
     val currency = state.data.displayCurrency
     val expense = state.totalMinor(TransactionType.EXPENSE)
     val income = state.totalMinor(TransactionType.INCOME)
     val budget = state.budgetMinor()
-    val balance = income - expense
+    val spendable = budget + income
+    val balance = spendable - expense
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -137,7 +143,7 @@ internal fun FinanceScreen(
                     Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Доступно", color = Color.White.copy(alpha = 0.7f))
                         Text(formatMoney(balance, currency), color = Color(0xFFFFDD2D), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
-                        val progress = if (budget <= 0) 0f else (expense.toFloat() / budget).coerceIn(0f, 1f)
+                        val progress = if (spendable <= 0) 0f else (expense.toFloat() / spendable).coerceIn(0f, 1f)
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier.fillMaxWidth().height(9.dp).clip(CircleShape),
@@ -146,7 +152,7 @@ internal fun FinanceScreen(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                if (budget > 0) "Потрачено ${formatMoney(expense, currency)} из ${formatMoney(budget, currency)}"
+                                if (spendable > 0) "Потрачено ${formatMoney(expense, currency)} из ${formatMoney(spendable, currency)}"
                                 else "Бюджет ещё не задан",
                                 color = Color.White.copy(alpha = 0.78f),
                                 modifier = Modifier.weight(1f),
@@ -161,14 +167,22 @@ internal fun FinanceScreen(
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, transactionTypeColor(TransactionType.INCOME), Modifier.weight(1f))
-                    FinanceMetric("Расходы", expense, currency, transactionTypeColor(TransactionType.EXPENSE), Modifier.weight(1f))
+                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, transactionTypeColor(TransactionType.INCOME), Modifier.weight(1f)) {
+                        analyticsType = TransactionType.INCOME
+                    }
+                    FinanceMetric("Расходы", expense, currency, transactionTypeColor(TransactionType.EXPENSE), Modifier.weight(1f)) {
+                        analyticsType = TransactionType.EXPENSE
+                    }
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FinanceMetric("Мне должны", state.totalMinor(TransactionType.OWED_TO_ME), currency, transactionTypeColor(TransactionType.OWED_TO_ME), Modifier.weight(1f))
-                    FinanceMetric("Я должен", state.totalMinor(TransactionType.I_OWE), currency, transactionTypeColor(TransactionType.I_OWE), Modifier.weight(1f))
+                    FinanceMetric("Мне должны", state.totalMinor(TransactionType.OWED_TO_ME), currency, transactionTypeColor(TransactionType.OWED_TO_ME), Modifier.weight(1f)) {
+                        analyticsType = TransactionType.OWED_TO_ME
+                    }
+                    FinanceMetric("Я должен", state.totalMinor(TransactionType.I_OWE), currency, transactionTypeColor(TransactionType.I_OWE), Modifier.weight(1f)) {
+                        analyticsType = TransactionType.I_OWE
+                    }
                 }
             }
             item {
@@ -274,14 +288,58 @@ internal fun FinanceScreen(
         AlertDialog(
             onDismissRequest = { selectedTransaction = null },
             title = { Text(transaction.category) },
-            text = { Text("${transaction.type.title}\n${formatMoney(transaction.amountMinor, transaction.currency)}") },
+            text = {
+                Text(
+                    "${transaction.type.title}\n${formatMoney(transaction.amountMinor, transaction.currency)}" +
+                        if (transaction.settled) "\nДолг погашен" else "",
+                )
+            },
             confirmButton = {
-                Button(
-                    onClick = { onDelete(transaction.id); selectedTransaction = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                ) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.size(6.dp)); Text("Удалить") }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (transaction.type == TransactionType.OWED_TO_ME || transaction.type == TransactionType.I_OWE) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = {
+                                editingDebt = transaction
+                                selectedTransaction = null
+                            }) { Icon(Icons.Rounded.Edit, null); Spacer(Modifier.size(4.dp)); Text("Изменить") }
+                            Button(
+                                onClick = { onToggleSettled(transaction.id); selectedTransaction = null },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (transaction.settled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF52D273),
+                                    contentColor = if (transaction.settled) MaterialTheme.colorScheme.onSurface else Color(0xFF102515),
+                                ),
+                            ) { Text(if (transaction.settled) "Вернуть" else "Погашен") }
+                        }
+                    }
+                    Button(
+                        onClick = { onDelete(transaction.id); selectedTransaction = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    ) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.size(6.dp)); Text("Удалить") }
+                }
             },
             dismissButton = { TextButton(onClick = { selectedTransaction = null }) { Text("Готово") } },
+        )
+    }
+    editingDebt?.let { transaction ->
+        EditDebtDialog(
+            transaction = transaction,
+            data = state.data,
+            onDismiss = { editingDebt = null },
+            onConfirm = { amount, itemCurrency, target ->
+                onUpdate(transaction.id, amount, itemCurrency, target)
+                editingDebt = null
+            },
+        )
+    }
+    analyticsType?.let { type ->
+        TransactionAnalyticsDialog(
+            type = type,
+            data = state.data,
+            onDismiss = { analyticsType = null },
+            onOpen = {
+                analyticsType = null
+                selectedTransaction = it
+            },
         )
     }
 }
@@ -426,11 +484,19 @@ private fun CurrencySelector(value: MoneyCurrency, onChange: (MoneyCurrency) -> 
 }
 
 @Composable
-private fun FinanceMetric(title: String, amount: Long, currency: MoneyCurrency, color: Color, modifier: Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(20.dp), color = color.copy(alpha = 0.14f)) {
+private fun FinanceMetric(
+    title: String,
+    amount: Long,
+    currency: MoneyCurrency,
+    color: Color,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), color = color.copy(alpha = 0.14f)) {
         Column(Modifier.padding(15.dp)) {
             Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatMoney(amount, currency), fontWeight = FontWeight.ExtraBold, color = color)
+            Text("Подробнее  ›", style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.78f))
         }
     }
 }
@@ -443,7 +509,7 @@ private fun TransactionCard(
     categoryColor: Color,
     onClick: () -> Unit,
 ) {
-    val typeColor = transactionTypeColor(item.type)
+    val typeColor = if (item.settled) MaterialTheme.colorScheme.onSurfaceVariant else transactionTypeColor(item.type)
     val icon: ImageVector = when (item.type) {
         TransactionType.INCOME -> Icons.Rounded.ArrowDownward
         TransactionType.EXPENSE -> Icons.Rounded.ArrowUpward
@@ -457,7 +523,12 @@ private fun TransactionCard(
             Spacer(Modifier.size(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(item.category, fontWeight = FontWeight.Bold, color = categoryColor)
-                Text(item.type.title, color = typeColor, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (item.settled) "${item.type.title} · погашен" else item.type.title,
+                    color = typeColor,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatMoney(item.amountMinor, item.currency), fontWeight = FontWeight.ExtraBold, color = typeColor)
@@ -488,7 +559,12 @@ private fun AddTransactionDialog(
     var currency by remember { mutableStateOf(MoneyCurrency.USD) }
     var type by remember(initialType) { mutableStateOf(initialType) }
     val amountMinor = parseAmountMinor(amount)
-    val targets = if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) friends else categories
+    val needsTarget = type != TransactionType.INCOME
+    val targets = when (type) {
+        TransactionType.INCOME -> emptyList()
+        TransactionType.EXPENSE -> categories
+        TransactionType.OWED_TO_ME, TransactionType.I_OWE -> friends
+    }
     val selectedTypeColor = transactionTypeColor(type)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -498,7 +574,7 @@ private fun AddTransactionDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Сумма") },
+                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
                     suffix = { Text(currency.symbol, color = selectedTypeColor, fontWeight = FontWeight.ExtraBold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
@@ -524,10 +600,10 @@ private fun AddTransactionDialog(
                                 RoundedCornerShape(13.dp),
                             ).clickable {
                                 type = item
-                                target = if (item == TransactionType.OWED_TO_ME || item == TransactionType.I_OWE) {
-                                    friends.firstOrNull().orEmpty()
-                                } else {
-                                    categories.firstOrNull().orEmpty()
+                                target = when (item) {
+                                    TransactionType.INCOME -> item.title
+                                    TransactionType.EXPENSE -> categories.firstOrNull().orEmpty()
+                                    TransactionType.OWED_TO_ME, TransactionType.I_OWE -> friends.firstOrNull().orEmpty()
                                 }
                             },
                         ) {
@@ -540,13 +616,18 @@ private fun AddTransactionDialog(
                         }
                     }
                 }
-                Text(
-                    if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) "Кто" else "Категория",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    targets.forEach { item ->
+                if (needsTarget) {
+                    Text(
+                        when (type) {
+                            TransactionType.OWED_TO_ME -> "Кто"
+                            TransactionType.I_OWE -> "Кому"
+                            else -> "Категория"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        targets.forEach { item ->
                         val itemColor = FinanceCategoryPalette[
                             if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) {
                                 data.friendColorIndex(item)
@@ -572,9 +653,10 @@ private fun AddTransactionDialog(
                                 fontWeight = if (target == item) FontWeight.Bold else FontWeight.Normal,
                             )
                         }
+                        }
                     }
                 }
-                if (targets.isEmpty()) {
+                if (needsTarget && targets.isEmpty()) {
                     Text(
                         if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) "Сначала добавьте друга на экране финансов."
                         else "Сначала добавьте категорию на экране финансов.",
@@ -586,12 +668,147 @@ private fun AddTransactionDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(amountMinor, currency, type, target) },
-                enabled = target.isNotBlank() && amountMinor > 0,
+                onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target) },
+                enabled = (!needsTarget || target.isNotBlank()) && amountMinor > 0,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
+@Composable
+private fun EditDebtDialog(
+    transaction: MoneyTransaction,
+    data: FinanceData,
+    onDismiss: () -> Unit,
+    onConfirm: (Long, MoneyCurrency, String) -> Unit,
+) {
+    var amount by remember(transaction.id) {
+        mutableStateOf("${transaction.amountMinor / 100}.${(transaction.amountMinor % 100).toString().padStart(2, '0')}")
+    }
+    var currency by remember(transaction.id) { mutableStateOf(transaction.currency) }
+    var friend by remember(transaction.id) { mutableStateOf(transaction.category) }
+    val amountMinor = parseAmountMinor(amount)
+    val accent = transactionTypeColor(transaction.type)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Изменить долг", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { amount = it },
+                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
+                    suffix = { Text(currency.symbol, color = accent, fontWeight = FontWeight.ExtraBold) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                CurrencySelector(currency) { currency = it }
+                Text(
+                    if (transaction.type == TransactionType.I_OWE) "Кому" else "Кто",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    data.friends.forEach { item ->
+                        val color = FinanceCategoryPalette[data.friendColorIndex(item)]
+                        Surface(
+                            shape = RoundedCornerShape(13.dp),
+                            color = color.copy(alpha = if (friend == item) 0.24f else 0.10f),
+                            modifier = Modifier.border(
+                                if (friend == item) 1.dp else 0.dp,
+                                if (friend == item) color else Color.Transparent,
+                                RoundedCornerShape(13.dp),
+                            ).clickable { friend = item },
+                        ) {
+                            Text(
+                                item,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                color = if (friend == item) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (friend == item) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(amountMinor, currency, friend) },
+                enabled = amountMinor > 0 && friend.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+            ) { Text("Сохранить") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
+@Composable
+private fun TransactionAnalyticsDialog(
+    type: TransactionType,
+    data: FinanceData,
+    onDismiss: () -> Unit,
+    onOpen: (MoneyTransaction) -> Unit,
+) {
+    val transactions = data.transactions.filter { it.type == type }
+    val active = transactions.filterNot { it.settled }
+    val total = active.mapNotNull {
+        convertMinor(it.amountMinor, it.currency, data.displayCurrency, data.rates)
+    }.sum()
+    val color = transactionTypeColor(type)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(type.title, fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(
+                Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Surface(shape = RoundedCornerShape(20.dp), color = color.copy(alpha = 0.14f)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                        Text(if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) "Активная сумма" else "Всего", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(formatMoney(total, data.displayCurrency), color = color, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("${transactions.size} операций", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (transactions.isEmpty()) {
+                    Text("Операций пока нет.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 18.dp))
+                }
+                transactions.forEach { transaction ->
+                    val itemColor = if (type == TransactionType.OWED_TO_ME || type == TransactionType.I_OWE) {
+                        FinanceCategoryPalette[data.friendColorIndex(transaction.category)]
+                    } else {
+                        FinanceCategoryPalette[data.categoryColorIndex(transaction.category)]
+                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onOpen(transaction) },
+                        shape = RoundedCornerShape(17.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+                    ) {
+                        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(itemColor))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(transaction.category, fontWeight = FontWeight.Bold)
+                                if (transaction.settled) Text("Погашен", color = Color(0xFF52D273), style = MaterialTheme.typography.labelSmall)
+                            }
+                            Text(
+                                convertMinor(transaction.amountMinor, transaction.currency, data.displayCurrency, data.rates)
+                                    ?.let { formatMoney(it, data.displayCurrency) }
+                                    ?: formatMoney(transaction.amountMinor, transaction.currency),
+                                color = if (transaction.settled) MaterialTheme.colorScheme.onSurfaceVariant else color,
+                                fontWeight = FontWeight.ExtraBold,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
     )
 }
 

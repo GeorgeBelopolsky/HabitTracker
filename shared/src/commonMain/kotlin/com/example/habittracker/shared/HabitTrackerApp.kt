@@ -222,6 +222,10 @@ fun HabitTrackerApp(storage: HabitStorage) {
                             scope.launch { financeStore.addTransaction(amount, currency, type, target) }
                         },
                         onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
+                        onUpdate = { id, amount, currency, target ->
+                            scope.launch { financeStore.updateTransaction(id, amount, currency, target) }
+                        },
+                        onToggleSettled = { scope.launch { financeStore.toggleTransactionSettled(it) } },
                         onAddCategory = { scope.launch { financeStore.addCategory(it) } },
                         onDeleteCategory = { scope.launch { financeStore.deleteCategory(it) } },
                         onCategoryColorChange = { name, color ->

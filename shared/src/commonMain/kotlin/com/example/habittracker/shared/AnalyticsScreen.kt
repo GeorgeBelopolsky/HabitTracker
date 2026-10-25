@@ -44,6 +44,8 @@ internal enum class AnalyticsKind { HABITS, FINANCE }
 
 private val AnalyticsYellow = Color(0xFFFFDD2D)
 private val AnalyticsBlue = Color(0xFF2F7DFF)
+private val AnalyticsIncome = Color(0xFF52D273)
+private val AnalyticsExpense = Color(0xFFFF5E6C)
 private val AnalyticsCard = Color(0xFF1B1B1F)
 private val AnalyticsCardElevated = Color(0xFF242429)
 
@@ -289,12 +291,30 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
             convertMinor(it.amountMinor, it.currency, state.data.displayCurrency, state.data.rates)
         }.sum()
     }
+    val monthly = (0..5).map { offset ->
+        val absoluteMonth = current.year * 12 + (current.month - 1) - offset
+        val year = absoluteMonth / 12
+        val month = absoluteMonth.mod(12) + 1
+        val monthTransactions = state.data.transactions.filter {
+            val date = calendarDate(it.epochDay)
+            date.year == year && date.month == month
+        }
+        fun monthTotal(type: TransactionType): Long = monthTransactions.filter { it.type == type }.mapNotNull {
+            convertMinor(it.amountMinor, it.currency, state.data.displayCurrency, state.data.rates)
+        }.sum()
+        MonthlyFinanceSummary(year, month, monthTotal(TransactionType.INCOME), monthTotal(TransactionType.EXPENSE))
+    }
 
     item { FinanceOverviewCard(expenses, income, state.data.displayCurrency, current.month, transactions.size) }
     item {
         SectionTitle("Динамика расходов", "последние 7 дней")
         Spacer(Modifier.height(10.dp))
         FinanceWeekChart(dailyExpenses, state.data.displayCurrency)
+    }
+    item {
+        SectionTitle("Баланс по месяцам", "профицит или дефицит")
+        Spacer(Modifier.height(10.dp))
+        MonthlyBalanceCard(monthly, state.data.displayCurrency)
     }
     item { SectionTitle("Категории", if (categories.isEmpty()) "пока без расходов" else "${categories.size} категорий") }
     item {
@@ -305,6 +325,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
 
 @Composable
 private fun FinanceOverviewCard(expenses: Long, income: Long, currency: MoneyCurrency, month: Int, operationCount: Int) {
+    val result = income - expenses
     Surface(shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
         Column(
             Modifier.fillMaxWidth().background(
@@ -322,8 +343,56 @@ private fun FinanceOverviewCard(expenses: Long, income: Long, currency: MoneyCur
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FinanceMetric("Доходы", formatMoney(income, currency), AnalyticsBlue, Modifier.weight(1f))
-                FinanceMetric("Баланс", formatMoney(income - expenses, currency), AnalyticsYellow, Modifier.weight(1f))
+                FinanceMetric("Доходы", formatMoney(income, currency), AnalyticsIncome, Modifier.weight(1f))
+                FinanceMetric(
+                    when { result > 0 -> "Профицит"; result < 0 -> "Дефицит"; else -> "Баланс" },
+                    formatMoney(kotlin.math.abs(result), currency),
+                    when { result > 0 -> AnalyticsIncome; result < 0 -> AnalyticsExpense; else -> AnalyticsYellow },
+                    Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+private data class MonthlyFinanceSummary(
+    val year: Int,
+    val month: Int,
+    val income: Long,
+    val expense: Long,
+)
+
+@Composable
+private fun MonthlyBalanceCard(items: List<MonthlyFinanceSummary>, currency: MoneyCurrency) {
+    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items.forEach { item ->
+                val result = item.income - item.expense
+                val positive = result > 0
+                val negative = result < 0
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("${monthName(item.month)} ${item.year}", fontWeight = FontWeight.Bold)
+                        Text(
+                            "Доходы ${formatMoney(item.income, currency)} · расходы ${formatMoney(item.expense, currency)}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            when { positive -> "Профицит"; negative -> "Дефицит"; else -> "Баланс" },
+                            color = when { positive -> AnalyticsIncome; negative -> AnalyticsExpense; else -> AnalyticsYellow },
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            (when { positive -> "+"; negative -> "−"; else -> "" }) + formatMoney(kotlin.math.abs(result), currency),
+                            color = when { positive -> AnalyticsIncome; negative -> AnalyticsExpense; else -> AnalyticsYellow },
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
+                }
             }
         }
     }

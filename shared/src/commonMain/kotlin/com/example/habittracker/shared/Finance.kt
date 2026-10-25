@@ -32,6 +32,7 @@ data class MoneyTransaction(
     val type: TransactionType,
     val category: String,
     val epochDay: Long,
+    val settled: Boolean = false,
 )
 
 @Serializable
@@ -121,7 +122,7 @@ data class FinanceState(val data: FinanceData = FinanceData(), val isLoading: Bo
     }
 
     fun totalMinor(type: TransactionType): Long = data.transactions
-        .filter { it.type == type }
+        .filter { it.type == type && (!it.settled || type == TransactionType.EXPENSE || type == TransactionType.INCOME) }
         .mapNotNull { convertMinor(it.amountMinor, it.currency, data.displayCurrency, data.rates) }
         .sum()
 }
@@ -176,15 +177,16 @@ class FinanceStore(
         type: TransactionType,
         target: String,
     ) = update { data ->
-        if (target.isBlank() || amountMinor <= 0) data else data.copy(
+        val normalizedTarget = if (type == TransactionType.INCOME) type.title else target.trim()
+        if (normalizedTarget.isBlank() || amountMinor <= 0) data else data.copy(
             transactions = listOf(
                 MoneyTransaction(
                     id = newHabitId(),
-                    title = target.trim(),
+                    title = normalizedTarget,
                     amountMinor = amountMinor,
                     currency = currency,
                     type = type,
-                    category = target.trim(),
+                    category = normalizedTarget,
                     epochDay = currentEpochDay(),
                 ),
             ) + data.transactions,
@@ -193,6 +195,34 @@ class FinanceStore(
 
     suspend fun deleteTransaction(id: String) = update { data ->
         data.copy(transactions = data.transactions.filterNot { it.id == id })
+    }
+
+    suspend fun updateTransaction(
+        id: String,
+        amountMinor: Long,
+        currency: MoneyCurrency,
+        target: String,
+    ) = update { data ->
+        if (amountMinor <= 0 || target.isBlank()) data else data.copy(
+            transactions = data.transactions.map { transaction ->
+                if (transaction.id == id) transaction.copy(
+                    title = target.trim(),
+                    amountMinor = amountMinor,
+                    currency = currency,
+                    category = target.trim(),
+                ) else transaction
+            },
+        )
+    }
+
+    suspend fun toggleTransactionSettled(id: String) = update { data ->
+        data.copy(
+            transactions = data.transactions.map { transaction ->
+                if (transaction.id == id &&
+                    (transaction.type == TransactionType.OWED_TO_ME || transaction.type == TransactionType.I_OWE)
+                ) transaction.copy(settled = !transaction.settled) else transaction
+            },
+        )
     }
 
     suspend fun addCategory(name: String) = update { data ->

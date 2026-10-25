@@ -15,6 +15,8 @@ import com.example.habittracker.shared.isScheduledOn
 import com.example.habittracker.shared.CurrencyBudget
 import com.example.habittracker.shared.FinanceData
 import com.example.habittracker.shared.FinanceState
+import com.example.habittracker.shared.MoneyTransaction
+import com.example.habittracker.shared.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -97,5 +99,14 @@ class HabitCalculationsTest {
         )
 
         assertEquals(16_351_000L, state.budgetMinor())
+    }
+
+    @Test
+    fun settledDebtIsExcludedFromActiveDebtTotal() {
+        val active = MoneyTransaction("active", amountMinor = 50_00, currency = MoneyCurrency.USD, type = TransactionType.OWED_TO_ME, category = "Бак", epochDay = 1)
+        val settled = MoneyTransaction("settled", amountMinor = 25_00, currency = MoneyCurrency.USD, type = TransactionType.OWED_TO_ME, category = "Коля", epochDay = 1, settled = true)
+        val state = FinanceState(FinanceData(transactions = listOf(active, settled)), isLoading = false)
+
+        assertEquals(50_00L, state.totalMinor(TransactionType.OWED_TO_ME))
     }
 }
