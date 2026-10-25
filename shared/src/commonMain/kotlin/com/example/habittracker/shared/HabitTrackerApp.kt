@@ -177,7 +177,10 @@ fun HabitTrackerApp(storage: HabitStorage) {
     var section by remember { mutableStateOf(AppSection.HABITS) }
 
     LaunchedEffect(store) { store.load() }
-    LaunchedEffect(financeStore) { financeStore.load() }
+    LaunchedEffect(financeStore) {
+        financeStore.load()
+        financeStore.refreshRates()
+    }
 
     HabitTrackerTheme {
         Box(Modifier.fillMaxSize()) {
@@ -210,10 +213,13 @@ fun HabitTrackerApp(storage: HabitStorage) {
                         onCurrencyChange = { scope.launch { financeStore.selectCurrency(it) } },
                         onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
                         onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
+                    onRefreshRates = { scope.launch { financeStore.refreshRates(force = true) } },
                         onAdd = { title, amount, currency, type, category ->
                             scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
                         },
                         onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
+                    onAddCategory = { scope.launch { financeStore.addCategory(it) } },
+                    onDeleteCategory = { scope.launch { financeStore.deleteCategory(it) } },
                     )
                 }
             }

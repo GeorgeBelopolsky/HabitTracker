@@ -2,6 +2,7 @@ package com.example.habittracker.shared
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -62,10 +64,16 @@ internal fun FinanceScreen(
     onCurrencyChange: (MoneyCurrency) -> Unit,
     onBudgetChange: (MoneyCurrency, Long) -> Unit,
     onRatesChange: (Double?, Double?) -> Unit,
+    onRefreshRates: () -> Unit,
     onAdd: (String, Long, MoneyCurrency, TransactionType, String) -> Unit,
     onDelete: (String) -> Unit,
+    onAddCategory: (String) -> Unit,
+    onDeleteCategory: (String) -> Unit,
 ) {
     var showAdd by remember { mutableStateOf(false) }
+    var presetCategory by remember { mutableStateOf("") }
+    var showAddCategory by remember { mutableStateOf(false) }
+    var showManageCategories by remember { mutableStateOf(false) }
     var showBudget by remember { mutableStateOf(false) }
     var showRates by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<MoneyTransaction?>(null) }
@@ -142,8 +150,19 @@ internal fun FinanceScreen(
                 }
             }
             item {
+                CategorySection(
+                    categories = state.data.categories,
+                    onSelect = {
+                        presetCategory = it
+                        showAdd = true
+                    },
+                    onAdd = { showAddCategory = true },
+                    onManage = { showManageCategories = true },
+                )
+            }
+            item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Операции", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text("История", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                     Text("${state.data.transactions.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -163,16 +182,33 @@ internal fun FinanceScreen(
         }
     }
 
-    if (showAdd) AddTransactionDialog(onDismiss = { showAdd = false }) { title, amount, itemCurrency, type, category ->
+    if (showAdd) AddTransactionDialog(
+        categories = state.data.categories,
+        initialCategory = presetCategory,
+        onDismiss = { showAdd = false; presetCategory = "" },
+    ) { title, amount, itemCurrency, type, category ->
         onAdd(title, amount, itemCurrency, type, category)
         showAdd = false
+        presetCategory = ""
     }
+    if (showAddCategory) CategoryNameDialog(
+        onDismiss = { showAddCategory = false },
+        onConfirm = { onAddCategory(it); showAddCategory = false },
+    )
+    if (showManageCategories) CategoryManagerDialog(
+        categories = state.data.categories,
+        onDismiss = { showManageCategories = false },
+        onDelete = onDeleteCategory,
+    )
     if (showBudget) AmountDialog("Бюджет в ${currency.code}", currency, state.budgetMinor(), { showBudget = false }) {
         onBudgetChange(currency, it); showBudget = false
     }
-    if (showRates) RatesDialog(state.data.rates, { showRates = false }) { rub, ars ->
-        onRatesChange(rub, ars); showRates = false
-    }
+    if (showRates) RatesDialog(
+        rates = state.data.rates,
+        onDismiss = { showRates = false },
+        onAutomatic = { onRefreshRates(); showRates = false },
+        onManual = { rub, ars -> onRatesChange(rub, ars); showRates = false },
+    )
     selectedTransaction?.let { transaction ->
         AlertDialog(
             onDismissRequest = { selectedTransaction = null },
@@ -185,6 +221,42 @@ internal fun FinanceScreen(
                 ) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.size(6.dp)); Text("Удалить") }
             },
             dismissButton = { TextButton(onClick = { selectedTransaction = null }) { Text("Готово") } },
+        )
+    }
+}
+
+@Composable
+private fun CategorySection(
+    categories: List<String>,
+    onSelect: (String) -> Unit,
+    onAdd: () -> Unit,
+    onManage: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Категории", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            TextButton(onClick = onManage) { Text("Настроить") }
+        }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            categories.forEach { category ->
+                Surface(
+                    modifier = Modifier.clickable { onSelect(category) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                ) {
+                    Text(category, modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp), fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Surface(
+                modifier = Modifier.size(44.dp).clickable(onClick = onAdd),
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+            ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "Добавить категорию") } }
+        }
+        Text(
+            "Нажмите категорию, чтобы быстрее добавить операцию.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -204,18 +276,24 @@ private fun ExchangeRateSummary(rates: ExchangeRates, onEdit: () -> Unit) {
                 Text(rates.sourceLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(
-                rates.rubPerUsd?.let { "1 USD = ${formatRate(it)} RUB" } ?: "1 USD = — RUB",
+                rates.rubPerUsd?.let { "1 USD = ${formatRate(it)} RUB · покупка USDT" }
+                    ?: "1 USD = — RUB · покупка USDT",
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                rates.arsPerUsd?.let { "1 USD = ${formatRate(it)} ARS" } ?: "1 USD = — ARS",
+                rates.arsPerUsd?.let { "1 USD = ${formatRate(it)} ARS · продажа USDT" }
+                    ?: "1 USD = — ARS · продажа USDT",
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                "Нажмите, чтобы изменить или проверить курс.",
+                if (rates.automatic) "Автоматическое обновление включено. Нажмите для настройки."
+                else "Используется ручной курс. Нажмите для настройки.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            rates.updatedAtLabel?.let {
+                Text("Обновлено: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
@@ -282,12 +360,14 @@ private fun TransactionCard(item: MoneyTransaction, display: MoneyCurrency, rate
 
 @Composable
 private fun AddTransactionDialog(
+    categories: List<String>,
+    initialCategory: String,
     onDismiss: () -> Unit,
     onConfirm: (String, Long, MoneyCurrency, TransactionType, String) -> Unit,
 ) {
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("") }
+    var category by remember(initialCategory) { mutableStateOf(initialCategory) }
     var currency by remember { mutableStateOf(MoneyCurrency.USD) }
     var type by remember { mutableStateOf(TransactionType.EXPENSE) }
     val amountMinor = parseAmountMinor(amount)
@@ -308,11 +388,53 @@ private fun AddTransactionDialog(
                         ) { Text(item.title, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp), fontWeight = FontWeight.SemiBold) }
                     }
                 }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    categories.forEach { item ->
+                        Surface(
+                            shape = RoundedCornerShape(13.dp),
+                            color = if (category == item) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.clickable { category = item },
+                        ) { Text(item, modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp)) }
+                    }
+                }
                 TextField(category, { category = it }, label = { Text("Категория или имя друга") }, singleLine = true)
             }
         },
         confirmButton = { Button(onClick = { onConfirm(title, amountMinor, currency, type, category) }, enabled = title.isNotBlank() && amountMinor > 0) { Text("Добавить") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
+@Composable
+private fun CategoryNameDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var value by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Новая категория") },
+        text = { TextField(value, { value = it }, label = { Text("Название") }, singleLine = true) },
+        confirmButton = { Button(onClick = { onConfirm(value) }, enabled = value.isNotBlank()) { Text("Добавить") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
+    )
+}
+
+@Composable
+private fun CategoryManagerDialog(categories: List<String>, onDismiss: () -> Unit, onDelete: (String) -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Категории") },
+        text = {
+            Column(Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState())) {
+                categories.forEach { category ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(category, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { onDelete(category) }) {
+                            Icon(Icons.Rounded.Delete, contentDescription = "Удалить $category", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
     )
 }
 
@@ -330,7 +452,12 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
 }
 
 @Composable
-private fun RatesDialog(rates: ExchangeRates, onDismiss: () -> Unit, onConfirm: (Double?, Double?) -> Unit) {
+private fun RatesDialog(
+    rates: ExchangeRates,
+    onDismiss: () -> Unit,
+    onAutomatic: () -> Unit,
+    onManual: (Double?, Double?) -> Unit,
+) {
     var rub by remember { mutableStateOf(rates.rubPerUsd?.toString().orEmpty()) }
     var ars by remember { mutableStateOf(rates.arsPerUsd?.toString().orEmpty()) }
     AlertDialog(
@@ -338,12 +465,19 @@ private fun RatesDialog(rates: ExchangeRates, onDismiss: () -> Unit, onConfirm: 
         title = { Text("Курсы валют") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Укажите, сколько единиц валюты стоит 1 USD. Курсы сохраняются на устройстве.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextField(rub, { rub = it }, label = { Text("1 USD = … RUB") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-                TextField(ars, { ars = it }, label = { Text("1 USD = … ARS") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                Text(
+                    "Автоматически: для ARS используется продажа USDT на Bybit P2P, для RUB — покупка USDT.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onAutomatic, modifier = Modifier.fillMaxWidth()) {
+                    Text(if (rates.automatic) "Обновить автоматический курс" else "Включить автоматический курс")
+                }
+                Text("Или задайте собственные значения:", fontWeight = FontWeight.SemiBold)
+                TextField(rub, { rub = it }, label = { Text("Покупка: 1 USD = … RUB") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                TextField(ars, { ars = it }, label = { Text("Продажа: 1 USD = … ARS") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(parsePositiveDouble(rub), parsePositiveDouble(ars)) }) { Text("Сохранить") } },
+        confirmButton = { Button(onClick = { onManual(parsePositiveDouble(rub), parsePositiveDouble(ars)) }) { Text("Сохранить вручную") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
     )
 }

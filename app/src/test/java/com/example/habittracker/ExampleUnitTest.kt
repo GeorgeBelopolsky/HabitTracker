@@ -12,6 +12,9 @@ import com.example.habittracker.shared.ExchangeRates
 import com.example.habittracker.shared.MoneyCurrency
 import com.example.habittracker.shared.convertMinor
 import com.example.habittracker.shared.isScheduledOn
+import com.example.habittracker.shared.CurrencyBudget
+import com.example.habittracker.shared.FinanceData
+import com.example.habittracker.shared.FinanceState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -80,5 +83,19 @@ class HabitCalculationsTest {
         val rates = ExchangeRates(rubPerUsd = 100.0, arsPerUsd = 1_500.0)
         assertEquals(1_00L, convertMinor(150_000, MoneyCurrency.ARS, MoneyCurrency.USD, rates))
         assertEquals(100_000L, convertMinor(10_00, MoneyCurrency.USD, MoneyCurrency.RUB, rates))
+    }
+
+    @Test
+    fun oneBudgetIsConvertedWhenDisplayCurrencyChanges() {
+        val state = FinanceState(
+            data = FinanceData(
+                displayCurrency = MoneyCurrency.ARS,
+                budgets = listOf(CurrencyBudget(MoneyCurrency.USD, 100_00)),
+                rates = ExchangeRates(rubPerUsd = 86.5, arsPerUsd = 1_635.1),
+            ),
+            isLoading = false,
+        )
+
+        assertEquals(16_351_000L, state.budgetMinor())
     }
 }

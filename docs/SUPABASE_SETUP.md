@@ -21,6 +21,6 @@ The app remains fully usable offline. Cloud sync must use a dedicated HabitTrack
 
 ## Bybit exchange rates
 
-The finance UI always shows the actual coefficients used for conversion, for example `1 USD = 1 610 ARS`, together with the source label. Bybit's public V5 ticker API covers spot and derivative symbols, not fiat ARS/RUB pairs. Bybit's official P2P Open API can expose ad data, but it requires a verified P2P advertiser account and an authenticated API key. Automatic Bybit P2P refresh therefore needs advertiser credentials stored only in a Supabase Edge Function; such credentials must never be embedded in the Android or iOS app. Until those credentials are supplied, the app keeps an editable local rate and clearly labels it as manual.
+The finance UI always shows the coefficients and direction used for conversion. ARS uses the Bybit P2P USDT sale price (`bid`) exposed by the public CriptoYa aggregator. RUB uses the public SAIKYO USDT purchase price. Neither read-only endpoint requires a key. The last successful values remain cached locally when the network is unavailable, and the user can switch to manual RUB and ARS rates at any time.
 
 Project creation is intentionally not automated until the owner selects the Supabase organization and accepts any quoted cost.

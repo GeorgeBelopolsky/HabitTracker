@@ -8,6 +8,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import kotlin.math.roundToLong
 
 @Serializable
@@ -38,8 +41,47 @@ data class CurrencyBudget(val currency: MoneyCurrency, val amountMinor: Long)
 data class ExchangeRates(
     val rubPerUsd: Double? = null,
     val arsPerUsd: Double? = null,
-    val sourceLabel: String = "Ручной курс",
+    val sourceLabel: String = "Автокурс",
+    val automatic: Boolean = true,
+    val updatedAtLabel: String? = null,
 )
+
+@Serializable
+private data class CriptoYaQuote(val bid: Double, val time: Long)
+
+@Serializable
+private data class SaikyoQuote(
+    val buy_usdt_via_sbp_qr_rub: Double,
+    val updated_at: String,
+)
+
+data class AutomaticExchangeRates(
+    val arsSalePerUsd: Double,
+    val rubPurchasePerUsd: Double,
+    val updatedAtLabel: String,
+)
+
+class PublicExchangeRateService(
+    private val client: HttpClient = HttpClient(),
+) {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    suspend fun fetch(): AutomaticExchangeRates {
+        val ars = json.decodeFromString<CriptoYaQuote>(
+            client.get("https://criptoya.com/api/bybitp2p/USDT/ARS/100").bodyAsText(),
+        )
+        val rub = json.decodeFromString<SaikyoQuote>(
+            client.get("https://saikyo.exchange/api/public/usdt-rub").bodyAsText(),
+        )
+        require(ars.bid > 0 && rub.buy_usdt_via_sbp_qr_rub > 0) { "Exchange rate is unavailable" }
+        return AutomaticExchangeRates(
+            arsSalePerUsd = ars.bid,
+            rubPurchasePerUsd = rub.buy_usdt_via_sbp_qr_rub,
+            updatedAtLabel = rub.updated_at.takeIf { it.length >= 16 }?.substring(11, 16)?.let { "$it UTC" }
+                ?: rub.updated_at,
+        )
+    }
+}
 
 @Serializable
 data class FinanceData(
@@ -47,6 +89,16 @@ data class FinanceData(
     val budgets: List<CurrencyBudget> = emptyList(),
     val transactions: List<MoneyTransaction> = emptyList(),
     val rates: ExchangeRates = ExchangeRates(),
+    val categories: List<String> = listOf(
+        "ЖКХ",
+        "Коммунальные услуги",
+        "Аренда",
+        "Продукты",
+        "Транспорт",
+        "Здоровье",
+        "Развлечения",
+        "Прочее",
+    ),
 )
 
 class FinanceRepository(private val storage: HabitStorage) {
@@ -60,7 +112,10 @@ class FinanceRepository(private val storage: HabitStorage) {
 }
 
 data class FinanceState(val data: FinanceData = FinanceData(), val isLoading: Boolean = true) {
-    fun budgetMinor(): Long = data.budgets.firstOrNull { it.currency == data.displayCurrency }?.amountMinor ?: 0
+    fun budgetMinor(): Long {
+        val budget = data.budgets.firstOrNull() ?: return 0
+        return convertMinor(budget.amountMinor, budget.currency, data.displayCurrency, data.rates) ?: 0
+    }
 
     fun totalMinor(type: TransactionType): Long = data.transactions
         .filter { it.type == type }
@@ -68,7 +123,10 @@ data class FinanceState(val data: FinanceData = FinanceData(), val isLoading: Bo
         .sum()
 }
 
-class FinanceStore(private val repository: FinanceRepository) {
+class FinanceStore(
+    private val repository: FinanceRepository,
+    private val exchangeRateService: PublicExchangeRateService = PublicExchangeRateService(),
+) {
     private val mutex = Mutex()
     private val mutableState = MutableStateFlow(FinanceState())
     val state: StateFlow<FinanceState> = mutableState.asStateFlow()
@@ -78,11 +136,35 @@ class FinanceStore(private val repository: FinanceRepository) {
     suspend fun selectCurrency(currency: MoneyCurrency) = update { it.copy(displayCurrency = currency) }
 
     suspend fun setBudget(currency: MoneyCurrency, amountMinor: Long) = update { data ->
-        data.copy(budgets = data.budgets.filterNot { it.currency == currency } + CurrencyBudget(currency, amountMinor))
+        data.copy(budgets = listOf(CurrencyBudget(currency, amountMinor)))
     }
 
     suspend fun setRates(rubPerUsd: Double?, arsPerUsd: Double?) = update { data ->
-        data.copy(rates = ExchangeRates(rubPerUsd?.takeIf { it > 0 }, arsPerUsd?.takeIf { it > 0 }))
+        data.copy(
+            rates = ExchangeRates(
+                rubPerUsd = rubPerUsd?.takeIf { it > 0 },
+                arsPerUsd = arsPerUsd?.takeIf { it > 0 },
+                sourceLabel = "Ручной курс",
+                automatic = false,
+            ),
+        )
+    }
+
+    suspend fun refreshRates(force: Boolean = false): Boolean {
+        if (!force && !mutableState.value.data.rates.automatic) return false
+        val fresh = runCatching { exchangeRateService.fetch() }.getOrNull() ?: return false
+        update { data ->
+            data.copy(
+                rates = ExchangeRates(
+                    rubPerUsd = fresh.rubPurchasePerUsd,
+                    arsPerUsd = fresh.arsSalePerUsd,
+                    sourceLabel = "Bybit P2P / SAIKYO",
+                    automatic = true,
+                    updatedAtLabel = fresh.updatedAtLabel,
+                ),
+            )
+        }
+        return true
     }
 
     suspend fun addTransaction(
@@ -109,6 +191,16 @@ class FinanceStore(private val repository: FinanceRepository) {
 
     suspend fun deleteTransaction(id: String) = update { data ->
         data.copy(transactions = data.transactions.filterNot { it.id == id })
+    }
+
+    suspend fun addCategory(name: String) = update { data ->
+        val normalized = name.trim()
+        if (normalized.isBlank() || data.categories.any { it.equals(normalized, ignoreCase = true) }) data
+        else data.copy(categories = data.categories + normalized)
+    }
+
+    suspend fun deleteCategory(name: String) = update { data ->
+        data.copy(categories = data.categories.filterNot { it == name })
     }
 
     private suspend fun update(transform: (FinanceData) -> FinanceData) = mutex.withLock {
