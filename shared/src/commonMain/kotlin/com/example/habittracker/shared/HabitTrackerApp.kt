@@ -1,19 +1,34 @@
 package com.example.habittracker.shared
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -52,7 +67,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
@@ -158,24 +176,41 @@ fun HabitTrackerApp(storage: HabitStorage) {
 
     HabitTrackerTheme {
         Box(Modifier.fillMaxSize()) {
-            when (section) {
-                AppSection.HABITS -> HabitTrackerScreen(
-                    state = state,
-                    onSelectDay = store::selectDay,
-                    onToggle = { id -> scope.launch { store.toggle(id) } },
-                    onHabitClick = store::openHabit,
-                    onAddClick = store::openAddDialog,
-                )
-                AppSection.FINANCE -> FinanceScreen(
-                    state = financeState,
-                    onCurrencyChange = { scope.launch { financeStore.selectCurrency(it) } },
-                    onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
-                    onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
-                    onAdd = { title, amount, currency, type, category ->
-                        scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
-                    },
-                    onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
-                )
+            AnimatedContent(
+                targetState = section,
+                transitionSpec = {
+                    val movingForward = targetState.ordinal > initialState.ordinal
+                    val enter = slideInHorizontally(
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        initialOffsetX = { width -> if (movingForward) width / 5 else -width / 5 },
+                    ) + fadeIn()
+                    val exit = slideOutHorizontally(
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                        targetOffsetX = { width -> if (movingForward) -width / 7 else width / 7 },
+                    ) + fadeOut()
+                    enter.togetherWith(exit).using(SizeTransform(clip = false))
+                },
+                label = "section-transition",
+            ) { targetSection ->
+                when (targetSection) {
+                    AppSection.HABITS -> HabitTrackerScreen(
+                        state = state,
+                        onSelectDay = store::selectDay,
+                        onToggle = { id -> scope.launch { store.toggle(id) } },
+                        onHabitClick = store::openHabit,
+                        onAddClick = store::openAddDialog,
+                    )
+                    AppSection.FINANCE -> FinanceScreen(
+                        state = financeState,
+                        onCurrencyChange = { scope.launch { financeStore.selectCurrency(it) } },
+                        onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
+                        onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
+                        onAdd = { title, amount, currency, type, category ->
+                            scope.launch { financeStore.addTransaction(title, amount, currency, type, category) }
+                        },
+                        onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
+                    )
+                }
             }
             AppBottomBar(section, { section = it }, Modifier.align(Alignment.BottomCenter))
         }
@@ -208,27 +243,56 @@ private enum class AppSection { HABITS, FINANCE }
 
 @Composable
 private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, modifier: Modifier = Modifier) {
+    val glassShape = RoundedCornerShape(31.dp)
     Surface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 12.dp)
+            .shadow(18.dp, glassShape)
+            .border(1.dp, Color.White.copy(alpha = 0.20f), glassShape),
         shape = RoundedCornerShape(30.dp),
-        color = Color(0xEE11130F),
-        shadowElevation = 12.dp,
+        color = Color(0xD9121510),
     ) {
-        Row(Modifier.padding(7.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-            BottomBarItem(
-                label = "Привычки",
-                icon = Icons.Rounded.TrackChanges,
-                selected = selected == AppSection.HABITS,
-                onClick = { onSelect(AppSection.HABITS) },
-                modifier = Modifier.weight(1f),
+        BoxWithConstraints(Modifier.padding(6.dp).height(59.dp)) {
+            val itemWidth = maxWidth / 2
+            val indicatorOffset by animateDpAsState(
+                targetValue = if (selected == AppSection.HABITS) 0.dp else itemWidth,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMediumLow,
+                ),
+                label = "glass-indicator",
             )
-            BottomBarItem(
-                label = "Финансы",
-                icon = Icons.Rounded.Savings,
-                selected = selected == AppSection.FINANCE,
-                onClick = { onSelect(AppSection.FINANCE) },
-                modifier = Modifier.weight(1f),
+            Box(
+                Modifier
+                    .offset(x = indicatorOffset)
+                    .width(itemWidth)
+                    .fillMaxHeight()
+                    .padding(2.dp)
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color.White.copy(alpha = 0.22f), Color(0xFF8EDC00).copy(alpha = 0.16f)),
+                        ),
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(25.dp)),
             )
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                BottomBarItem(
+                    label = "Привычки",
+                    icon = Icons.Rounded.TrackChanges,
+                    selected = selected == AppSection.HABITS,
+                    onClick = { onSelect(AppSection.HABITS) },
+                    modifier = Modifier.weight(1f),
+                )
+                BottomBarItem(
+                    label = "Финансы",
+                    icon = Icons.Rounded.Savings,
+                    selected = selected == AppSection.FINANCE,
+                    onClick = { onSelect(AppSection.FINANCE) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -236,11 +300,21 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
 @Composable
 private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val color = if (selected) Color(0xFFA8FF00) else Color.White.copy(alpha = 0.58f)
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.08f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "tab-scale",
+    )
     Column(
         modifier = modifier.clip(RoundedCornerShape(22.dp)).clickable(onClick = onClick).padding(vertical = 7.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(22.dp))
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = color,
+            modifier = Modifier.size(22.dp).graphicsLayer { scaleX = scale; scaleY = scale },
+        )
         Text(label, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
     }
 }
