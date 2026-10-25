@@ -92,7 +92,8 @@ internal fun FinanceScreen(
             FloatingActionButton(
                 onClick = { showAdd = true },
                 modifier = Modifier.padding(bottom = 72.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = Color(0xFFA8FF00),
+                contentColor = Color(0xFF173600),
             ) { Icon(Icons.Rounded.Add, contentDescription = "Добавить операцию") }
         },
     ) { padding ->
@@ -118,17 +119,17 @@ internal fun FinanceScreen(
             item { ExchangeRateSummary(state.data.rates, onEdit = { showRates = true }) }
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF172600)),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF20201E)),
                     shape = RoundedCornerShape(28.dp),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Доступно", color = Color.White.copy(alpha = 0.7f))
-                        Text(formatMoney(balance, currency), color = Color(0xFFA8FF00), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(formatMoney(balance, currency), color = Color(0xFFFFDD2D), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
                         val progress = if (budget <= 0) 0f else (expense.toFloat() / budget).coerceIn(0f, 1f)
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier.fillMaxWidth().height(9.dp).clip(CircleShape),
-                            color = if (progress >= 1f) Color(0xFFFF6B6B) else Color(0xFFA8FF00),
+                            color = if (progress >= 1f) Color(0xFFFF6B6B) else Color(0xFFFFDD2D),
                             trackColor = Color.White.copy(alpha = 0.16f),
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -139,8 +140,8 @@ internal fun FinanceScreen(
                                 modifier = Modifier.weight(1f),
                             )
                             TextButton(onClick = { showBudget = true }) {
-                                Icon(Icons.Rounded.Edit, null, tint = Color(0xFFA8FF00))
-                                Text("Изменить", color = Color(0xFFA8FF00))
+                                Icon(Icons.Rounded.Edit, null, tint = Color(0xFFFFDD2D))
+                                Text("Изменить", color = Color(0xFFFFDD2D))
                             }
                         }
                     }
@@ -148,7 +149,7 @@ internal fun FinanceScreen(
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, Color(0xFF70D6B4), Modifier.weight(1f))
+                    FinanceMetric("Доходы", state.totalMinor(TransactionType.INCOME), currency, Color(0xFF2F7DFF), Modifier.weight(1f))
                     FinanceMetric("Расходы", expense, currency, Color(0xFFFF8B8B), Modifier.weight(1f))
                 }
             }
@@ -265,7 +266,7 @@ private fun CategorySection(
             Surface(
                 modifier = Modifier.size(44.dp).clickable(onClick = onAdd),
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary,
+                color = Color(0xFFA8FF00),
             ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "Добавить категорию") } }
         }
         Text(
@@ -321,8 +322,12 @@ private fun CurrencySelector(value: MoneyCurrency, onChange: (MoneyCurrency) -> 
             Surface(
                 modifier = Modifier.weight(1f).height(42.dp).clickable { onChange(currency) },
                 shape = RoundedCornerShape(14.dp),
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-            ) { Box(contentAlignment = Alignment.Center) { Text(currency.code, fontWeight = FontWeight.Bold) } }
+                color = if (selected) Color(0xFFA8FF00) else MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(currency.code, fontWeight = FontWeight.Bold, color = if (selected) Color(0xFF173600) else MaterialTheme.colorScheme.onSurface)
+                }
+            }
         }
     }
 }
@@ -485,7 +490,7 @@ internal val FinanceCategoryPalette = listOf(
     Color(0xFFFF8FA3),
     Color(0xFFA889FF),
     Color(0xFFFFA95A),
-    Color(0xFF70D6B4),
+    Color(0xFF4D8DFF),
     Color(0xFFB6C1D1),
 )
 

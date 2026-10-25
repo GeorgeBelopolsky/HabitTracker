@@ -14,21 +14,26 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +42,11 @@ import androidx.compose.ui.unit.sp
 
 internal enum class AnalyticsKind { HABITS, FINANCE }
 
+private val AnalyticsYellow = Color(0xFFFFDD2D)
+private val AnalyticsBlue = Color(0xFF2F7DFF)
+private val AnalyticsCard = Color(0xFF1B1B1F)
+private val AnalyticsCardElevated = Color(0xFF242429)
+
 @Composable
 internal fun AnalyticsScreen(
     habitState: HabitTrackerState,
@@ -44,14 +54,17 @@ internal fun AnalyticsScreen(
     kind: AnalyticsKind,
     onKindChange: (AnalyticsKind) -> Unit,
 ) {
+    val listState = remember(kind) { LazyListState() }
+    LaunchedEffect(kind) { listState.scrollToItem(0) }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 112.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding(),
+        state = listState,
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 116.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("Аналитика", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
-            Text("Понятная картина привычек и денег", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Аналитика", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
+            Text("Главное за неделю и месяц", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { AnalyticsSelector(kind, onKindChange) }
         when (kind) {
@@ -63,20 +76,20 @@ internal fun AnalyticsScreen(
 
 @Composable
 private fun AnalyticsSelector(selected: AnalyticsKind, onSelect: (AnalyticsKind) -> Unit) {
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+    Surface(shape = RoundedCornerShape(20.dp), color = AnalyticsCardElevated) {
         Row(Modifier.fillMaxWidth().padding(4.dp)) {
             AnalyticsKind.entries.forEach { item ->
                 val active = item == selected
                 Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
-                        .background(if (active) Color(0xFFFFDD2D) else Color.Transparent)
+                    Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .background(if (active) Color(0xFFA8FF00) else Color.Transparent)
                         .clickable { onSelect(item) }.padding(vertical = 11.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         if (item == AnalyticsKind.HABITS) "Привычки" else "Финансы",
                         fontWeight = FontWeight.Bold,
-                        color = if (active) Color(0xFF1A1A18) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (active) Color(0xFF161614) else Color.White.copy(alpha = 0.68f),
                     )
                 }
             }
@@ -85,47 +98,83 @@ private fun AnalyticsSelector(selected: AnalyticsKind, onSelect: (AnalyticsKind)
 }
 
 private fun androidx.compose.foundation.lazy.LazyListScope.habitAnalyticsItems(state: HabitTrackerState) {
+    val percent = if (state.stats.weeklyTarget == 0) 0 else state.stats.weeklyCompletions * 100 / state.stats.weeklyTarget
+    val successful = state.habits.count { it.weeklyProgress(state.today) >= 1f }
+    val active = state.habits.count { it.isScheduledOn(state.today) }
+
+    item { HabitOverviewCard(percent, state.stats.weeklyCompletions, state.stats.weeklyTarget, successful, active) }
     item {
-        val percent = if (state.stats.weeklyTarget == 0) 0 else state.stats.weeklyCompletions * 100 / state.stats.weeklyTarget
-        Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF192700))) {
-            Column(Modifier.fillMaxWidth().padding(22.dp)) {
-                Text("Эта неделя", color = Color.White.copy(alpha = 0.68f))
-                Text("$percent%", color = Color(0xFFA8FF00), fontSize = 42.sp, fontWeight = FontWeight.ExtraBold)
-                Text(
-                    "${state.stats.weeklyCompletions} из ${state.stats.weeklyTarget} запланированных выполнений",
-                    color = Color.White.copy(alpha = 0.78f),
-                )
-            }
-        }
-    }
-    item {
-        Text("Последние 7 дней", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        SectionTitle("Ритм недели", "по запланированным дням")
         Spacer(Modifier.height(10.dp))
         HabitWeekChart(state)
     }
-    item { Text("По привычкам", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-    state.habits.forEach { habit ->
-        item(key = "analytics-${habit.id}") {
-            val color = HabitColors[habit.colorIndex.mod(HabitColors.size)]
-            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(habit.title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+    item { SectionTitle("Ваши привычки", "${state.habits.size} активных") }
+    if (state.habits.isEmpty()) {
+        item { AnalyticsEmptyState("Добавьте привычку — здесь появится её прогресс и серии.") }
+    } else {
+        state.habits.forEach { habit ->
+            item(key = "analytics-${habit.id}") { HabitAnalyticsRow(habit, state.today) }
+        }
+    }
+}
+
+@Composable
+private fun HabitOverviewCard(percent: Int, completed: Int, target: Int, successful: Int, activeToday: Int) {
+    Surface(shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
+        Box(
+            Modifier.fillMaxWidth().background(
+                Brush.linearGradient(listOf(Color(0xFF20201E), Color(0xFF171C27))),
+            ).padding(20.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ActivityRing(percent / 100f, "$percent%", "неделя")
+                    Spacer(Modifier.width(18.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Недельная цель", color = Color.White.copy(alpha = 0.62f))
                         Text(
-                            "${habit.completedInWeek(state.today)}/${habit.schedule().size}",
-                            color = color,
+                            when {
+                                percent >= 100 -> "Отличный результат"
+                                percent >= 70 -> "Почти у цели"
+                                percent > 0 -> "Продолжайте ритм"
+                                else -> "Начните сегодня"
+                            },
+                            fontSize = 21.sp,
                             fontWeight = FontWeight.ExtraBold,
                         )
+                        Text("$completed из $target выполнений", color = Color.White.copy(alpha = 0.62f), style = MaterialTheme.typography.bodySmall)
                     }
-                    Spacer(Modifier.height(9.dp))
-                    LinearProgressIndicator(
-                        progress = { habit.weeklyProgress(state.today) },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
-                        color = color,
-                        trackColor = color.copy(alpha = 0.16f),
-                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CompactMetric("Сегодня", "$activeToday", "запланировано", AnalyticsBlue, Modifier.weight(1f))
+                    CompactMetric("Закрыто", "$successful", "за неделю", AnalyticsYellow, Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ActivityRing(progress: Float, value: String, caption: String) {
+    Box(Modifier.size(104.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawArc(Color.White.copy(alpha = 0.10f), -90f, 360f, false, style = Stroke(10.dp.toPx(), cap = StrokeCap.Round))
+            drawArc(AnalyticsYellow, -90f, 360f * progress.coerceIn(0f, 1f), false, style = Stroke(10.dp.toPx(), cap = StrokeCap.Round))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+            Text(caption, fontSize = 10.sp, color = Color.White.copy(alpha = 0.55f))
+        }
+    }
+}
+
+@Composable
+private fun CompactMetric(label: String, value: String, note: String, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = 0.06f)) {
+        Column(Modifier.padding(13.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.58f))
+            Text(value, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = color)
+            Text(note, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.48f))
         }
     }
 }
@@ -134,33 +183,94 @@ private fun androidx.compose.foundation.lazy.LazyListScope.habitAnalyticsItems(s
 private fun HabitWeekChart(state: HabitTrackerState) {
     val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     val weekStart = startOfWeek(state.today)
-    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
+    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Row(
-            Modifier.fillMaxWidth().height(180.dp).padding(horizontal = 14.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxWidth().height(205.dp).padding(horizontal = 12.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             labels.forEachIndexed { index, label ->
                 val day = weekStart + index
                 val scheduled = state.habits.filter { it.isScheduledOn(day) }
-                val ratio = if (scheduled.isEmpty()) 0f else scheduled.count { it.isCompleted(day) }.toFloat() / scheduled.size
+                val done = scheduled.count { it.isCompleted(day) }
+                val ratio = if (scheduled.isEmpty()) 0f else done.toFloat() / scheduled.size
+                val isToday = day == state.today
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${(ratio * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
-                    Spacer(Modifier.height(5.dp))
-                    Box(
-                        Modifier.width(24.dp).height((112.dp * ratio.coerceAtLeast(0.04f))).clip(RoundedCornerShape(8.dp))
-                            .background(if (ratio >= 1f) Color(0xFFA8FF00) else MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+                    Text(
+                        if (scheduled.isEmpty()) "—" else "$done/${scheduled.size}",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isToday) AnalyticsYellow else Color.White.copy(alpha = 0.55f),
                     )
-                    Spacer(Modifier.height(5.dp))
-                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(7.dp))
+                    Box(
+                        Modifier.width(24.dp).height(96.dp).clip(RoundedCornerShape(9.dp)).background(Color.White.copy(alpha = 0.07f)),
+                        contentAlignment = Alignment.BottomCenter,
+                    ) {
+                        if (ratio > 0f) Box(
+                            Modifier.fillMaxWidth().height((96.dp * ratio).coerceAtLeast(8.dp))
+                                .background(if (isToday) AnalyticsYellow else AnalyticsBlue),
+                        )
+                    }
+                    Spacer(Modifier.height(7.dp))
+                    Surface(shape = CircleShape, color = if (isToday) AnalyticsYellow else Color.Transparent) {
+                        Text(
+                            label,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isToday) Color(0xFF151513) else Color.White.copy(alpha = 0.62f),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+@Composable
+private fun HabitAnalyticsRow(habit: Habit, today: Long) {
+    val color = HabitColors[habit.colorIndex.mod(HabitColors.size)]
+    val completed = habit.completedInWeek(today)
+    val target = habit.schedule().size
+    val progress = habit.weeklyProgress(today)
+    Surface(shape = RoundedCornerShape(22.dp), color = AnalyticsCard) {
+        Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(14.dp), color = color.copy(alpha = 0.16f)) {
+                    Box(Modifier.size(43.dp), contentAlignment = Alignment.Center) {
+                        Icon(habitIcon(habit.emoji), null, tint = color, modifier = Modifier.size(23.dp))
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(habit.title, fontWeight = FontWeight.Bold)
+                    Text(
+                        if (progress >= 1f) "Цель недели выполнена" else "Осталось ${(target - completed).coerceAtLeast(0)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text("${(progress * 100).toInt()}%", color = color, fontWeight = FontWeight.ExtraBold)
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),
+                color = color,
+                trackColor = color.copy(alpha = 0.13f),
+            )
+            Row {
+                Text("$completed из $target за неделю", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.52f))
+                Spacer(Modifier.weight(1f))
+                Text(habit.streakText(today), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.52f))
+            }
+        }
+    }
+}
+
 private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems(state: FinanceState) {
-    val current = calendarDate(currentEpochDay())
+    val currentDay = currentEpochDay()
+    val current = calendarDate(currentDay)
     val transactions = state.data.transactions.filter {
         val date = calendarDate(it.epochDay)
         date.year == current.year && date.month == current.month
@@ -171,53 +281,102 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
     val expenses = total(TransactionType.EXPENSE)
     val income = total(TransactionType.INCOME)
     val categories = transactions.asSequence().filter { it.type == TransactionType.EXPENSE }.mapNotNull { transaction ->
-        convertMinor(transaction.amountMinor, transaction.currency, state.data.displayCurrency, state.data.rates)
-            ?.let { transaction.category to it }
+        convertMinor(transaction.amountMinor, transaction.currency, state.data.displayCurrency, state.data.rates)?.let { transaction.category to it }
     }.groupBy({ it.first }, { it.second }).map { (name, amounts) -> name to amounts.sum() }.sortedByDescending { it.second }
+    val dailyExpenses = (6 downTo 0).map { offset ->
+        val day = currentDay - offset
+        day to transactions.filter { it.type == TransactionType.EXPENSE && it.epochDay == day }.mapNotNull {
+            convertMinor(it.amountMinor, it.currency, state.data.displayCurrency, state.data.rates)
+        }.sum()
+    }
 
+    item { FinanceOverviewCard(expenses, income, state.data.displayCurrency, current.month, transactions.size) }
     item {
-        Card(shape = RoundedCornerShape(28.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF20201E))) {
-            Column(Modifier.fillMaxWidth().padding(22.dp)) {
-                Text("Расходы · ${monthName(current.month)}", color = Color.White.copy(alpha = 0.68f))
-                Text(formatMoney(expenses, state.data.displayCurrency), color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(12.dp))
-                Row {
-                    Column(Modifier.weight(1f)) {
-                        Text("Доходы", color = Color.White.copy(alpha = 0.6f))
-                        Text(formatMoney(income, state.data.displayCurrency), color = Color(0xFF70D6B4), fontWeight = FontWeight.Bold)
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text("Баланс", color = Color.White.copy(alpha = 0.6f))
-                        Text(formatMoney(income - expenses, state.data.displayCurrency), color = Color(0xFFFFDD2D), fontWeight = FontWeight.Bold)
-                    }
+        SectionTitle("Динамика расходов", "последние 7 дней")
+        Spacer(Modifier.height(10.dp))
+        FinanceWeekChart(dailyExpenses, state.data.displayCurrency)
+    }
+    item { SectionTitle("Категории", if (categories.isEmpty()) "пока без расходов" else "${categories.size} категорий") }
+    item {
+        if (categories.isEmpty()) AnalyticsEmptyState("Добавьте расход во вкладке «Финансы» — здесь появятся диаграмма и категории.")
+        else FinanceCategoryBreakdown(categories, expenses, state.data)
+    }
+}
+
+@Composable
+private fun FinanceOverviewCard(expenses: Long, income: Long, currency: MoneyCurrency, month: Int, operationCount: Int) {
+    Surface(shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
+        Column(
+            Modifier.fillMaxWidth().background(
+                Brush.linearGradient(listOf(Color(0xFF20201E), Color(0xFF171C27))),
+            ).padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(17.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Расходы · ${monthName(month)}", color = Color.White.copy(alpha = 0.58f), fontWeight = FontWeight.SemiBold)
+                    Text(formatMoney(expenses, currency), color = AnalyticsYellow, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Surface(shape = CircleShape, color = AnalyticsYellow) {
+                    Text("$operationCount", modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), color = Color(0xFF151513), fontWeight = FontWeight.Bold)
                 }
             }
-        }
-    }
-    item {
-        Text("Куда ушли деньги", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        if (categories.isEmpty()) {
-            Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface) {
-                Text("Добавьте расходы — здесь появится разбивка по категориям.", modifier = Modifier.fillMaxWidth().padding(22.dp), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                FinanceMetric("Доходы", formatMoney(income, currency), AnalyticsBlue, Modifier.weight(1f))
+                FinanceMetric("Баланс", formatMoney(income - expenses, currency), AnalyticsYellow, Modifier.weight(1f))
             }
-        } else {
-            FinanceDonut(categories, expenses, state.data)
         }
     }
-    categories.forEach { (category, amount) ->
-        item(key = "category-$category") {
-            val color = FinanceCategoryPalette[state.data.categoryColorIndex(category)]
-            val percent = if (expenses == 0L) 0 else amount * 100 / expenses
-            Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
-                Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(13.dp).clip(CircleShape).background(color))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(category, fontWeight = FontWeight.Bold)
-                        Text("$percent% расходов", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+@Composable
+private fun FinanceMetric(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier, shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = 0.06f)) {
+        Column(Modifier.padding(13.dp)) {
+            Text(label, color = Color.White.copy(alpha = 0.54f), fontSize = 12.sp)
+            Text(value, color = accent, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun FinanceWeekChart(values: List<Pair<Long, Long>>, currency: MoneyCurrency) {
+    val max = values.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
+    val total = values.sumOf { it.second }
+    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Column(Modifier.weight(1f)) {
+                    Text("За 7 дней", color = Color.White.copy(alpha = 0.52f), fontSize = 12.sp)
+                    Text(formatMoney(total, currency), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text(
+                    if (total == 0L) "Нет расходов" else "В среднем ${formatMoney(total / 7, currency)}",
+                    color = Color.White.copy(alpha = 0.52f),
+                    fontSize = 11.sp,
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Row(
+                Modifier.fillMaxWidth().height(118.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                values.forEachIndexed { index, (day, amount) ->
+                    val ratio = amount.toFloat() / max
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(8.dp)).background(Color.White.copy(alpha = 0.06f)),
+                            contentAlignment = Alignment.BottomCenter,
+                        ) {
+                            if (amount > 0L) Box(
+                                Modifier.fillMaxWidth().height((88.dp * ratio).coerceAtLeast(7.dp))
+                                    .background(if (index == values.lastIndex) AnalyticsYellow else AnalyticsBlue),
+                            )
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text(dayOfMonth(day).toString(), fontSize = 11.sp, color = if (index == values.lastIndex) AnalyticsYellow else Color.White.copy(alpha = 0.55f))
                     }
-                    Text(formatMoney(amount, state.data.displayCurrency), fontWeight = FontWeight.ExtraBold)
                 }
             }
         }
@@ -225,30 +384,70 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
 }
 
 @Composable
-private fun FinanceDonut(categories: List<Pair<String, Long>>, total: Long, data: FinanceData) {
-    Box(Modifier.fillMaxWidth().height(238.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.size(205.dp)) {
-            var startAngle = -90f
-            categories.forEach { (category, amount) ->
-                val sweep = amount.toFloat() / total.coerceAtLeast(1) * 360f
-                drawArc(
-                    color = FinanceCategoryPalette[data.categoryColorIndex(category)],
-                    startAngle = startAngle,
-                    sweepAngle = (sweep - 2f).coerceAtLeast(0.8f),
-                    useCenter = false,
-                    style = Stroke(width = 34.dp.toPx()),
-                )
-                startAngle += sweep
+private fun FinanceCategoryBreakdown(categories: List<Pair<String, Long>>, total: Long, data: FinanceData) {
+    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+        Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.fillMaxWidth().height(178.dp), contentAlignment = Alignment.Center) {
+                Canvas(Modifier.size(154.dp)) {
+                    var startAngle = -90f
+                    categories.forEach { (category, amount) ->
+                        val sweep = amount.toFloat() / total.coerceAtLeast(1) * 360f
+                        drawArc(
+                            color = FinanceCategoryPalette[data.categoryColorIndex(category)],
+                            startAngle = startAngle,
+                            sweepAngle = (sweep - 3f).coerceAtLeast(1f),
+                            useCenter = false,
+                            style = Stroke(width = 25.dp.toPx(), cap = StrokeCap.Round),
+                        )
+                        startAngle += sweep
+                    }
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Всего", color = Color.White.copy(alpha = 0.52f), fontSize = 12.sp)
+                    Text(formatMoney(total, data.displayCurrency), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp, textAlign = TextAlign.Center)
+                }
+            }
+            categories.take(5).forEach { (category, amount) ->
+                val color = FinanceCategoryPalette[data.categoryColorIndex(category)]
+                val percent = if (total == 0L) 0 else amount * 100 / total
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+                    Spacer(Modifier.width(10.dp))
+                    Text(category, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+                    Text("$percent%", color = Color.White.copy(alpha = 0.52f), fontSize = 12.sp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(formatMoney(amount, data.displayCurrency), fontWeight = FontWeight.Bold)
+                }
             }
         }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Расходы", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-                formatMoney(total, data.displayCurrency),
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 20.sp,
-                textAlign = TextAlign.Center,
-            )
+    }
+}
+
+@Composable
+private fun SectionTitle(title: String, subtitle: String) {
+    Row(verticalAlignment = Alignment.Bottom) {
+        Text(title, modifier = Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
+        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun AnalyticsEmptyState(message: String) {
+    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 25.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
+                listOf(24.dp, 40.dp, 58.dp, 34.dp).forEachIndexed { index, height ->
+                    Box(
+                        Modifier.width(18.dp).height(height).clip(RoundedCornerShape(6.dp))
+                            .background(if (index == 2) AnalyticsYellow else AnalyticsBlue.copy(alpha = 0.7f)),
+                    )
+                }
+            }
+            Spacer(Modifier.height(17.dp))
+            Text(message, color = Color.White.copy(alpha = 0.62f), textAlign = TextAlign.Center)
         }
     }
 }

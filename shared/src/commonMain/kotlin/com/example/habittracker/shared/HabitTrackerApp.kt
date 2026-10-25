@@ -16,7 +16,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -55,7 +54,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -106,16 +104,16 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-private val Accent = Color(0xFF4F8F00)
-private val AccentDark = Color(0xFFA8FF00)
-private val AppBackground = Color(0xFFF7F7FB)
-private val DarkBackground = Color(0xFF121218)
+private val NavigationGreen = Color(0xFFA8FF00)
+private val BankYellow = Color(0xFFFFDD2D)
+private val BankBlue = Color(0xFF2F7DFF)
+private val DarkBackground = Color(0xFF0B0B0D)
 internal val HabitColors = listOf(
-    Color(0xFF70D6B4),
-    Color(0xFFFFC857),
-    Color(0xFFFF8B8B),
-    Color(0xFF74B9FF),
-    Color(0xFFC89BFF),
+    BankYellow,
+    BankBlue,
+    Color(0xFF64D8CB),
+    Color(0xFFFFA95A),
+    Color(0xFFA889FF),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
 
@@ -428,13 +426,20 @@ private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, o
 
 @Composable
 private fun HabitTrackerTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
     MaterialTheme(
-        colorScheme = if (dark) {
-            darkColorScheme(primary = AccentDark, background = DarkBackground, surface = Color(0xFF202028))
-        } else {
-            lightColorScheme(primary = Accent, background = AppBackground, surface = Color.White)
-        },
+        colorScheme = darkColorScheme(
+            primary = BankYellow,
+            onPrimary = Color(0xFF1B1B19),
+            primaryContainer = Color(0xFF403800),
+            onPrimaryContainer = Color(0xFFFFED8A),
+            secondary = BankBlue,
+            background = DarkBackground,
+            onBackground = Color(0xFFF5F4FA),
+            surface = Color(0xFF1B1B1F),
+            surfaceVariant = Color(0xFF29292F),
+            onSurface = Color(0xFFF5F4FA),
+            onSurfaceVariant = Color(0xFFB9B7C1),
+        ),
         content = content,
     )
 }
@@ -455,8 +460,8 @@ private fun HabitTrackerScreen(
             FloatingActionButton(
                 onClick = onAddClick,
                 modifier = Modifier.padding(bottom = 72.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = NavigationGreen,
+                contentColor = Color(0xFF173600),
             ) {
                 Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
             }
@@ -571,38 +576,37 @@ private fun ProgressRing(label: String, progress: Float, modifier: Modifier = Mo
 
 @Composable
 private fun DayPicker(today: Long, selectedDay: Long, onSelectDay: (Long) -> Unit) {
+    val weekdayLabels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(9.dp),
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         (6 downTo 0).forEach { daysAgo ->
             val day = today - daysAgo
             val selected = day == selectedDay
             Column(
                 modifier = Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(
-                        if (selected) MaterialTheme.colorScheme.primary
+                        if (selected) NavigationGreen
                         else MaterialTheme.colorScheme.surface,
                     )
                     .clickable { onSelectDay(day) }
-                    .padding(horizontal = 15.dp, vertical = 12.dp),
+                    .padding(vertical = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    text = when (daysAgo) {
-                        0 -> "СЕГ"
-                        1 -> "ВЧЕ"
-                        else -> "−$daysAgo"
-                    },
+                    text = weekdayLabels[isoDayOfWeek(day) - 1],
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) Color(0xFF173600)
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = dayOfMonth(day).toString(),
                     fontWeight = FontWeight.Bold,
-                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                    color = if (selected) Color(0xFF173600)
                     else MaterialTheme.colorScheme.onSurface,
                 )
             }
