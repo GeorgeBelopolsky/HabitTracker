@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "HabitTracker"
 include(":app")
+include(":shared")
