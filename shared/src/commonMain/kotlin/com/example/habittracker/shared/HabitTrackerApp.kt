@@ -107,29 +107,24 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-internal val AppGreen = Color(0xFF8FDD18)
+internal val AppGreen = Color(0xFF4F9B58)
 internal val AppBlue = Color(0xFF2F7DFF)
-internal val AccentOrange = Color(0xFFD96828)
+internal val AccentOrange = Color(0xFFC45F2A)
+internal val AppLavender = Color(0xFF9B87F5)
 internal val AppBackground = Color(0xFF080B10)
 internal val AppSurface = Color(0xFF121821)
 internal val AppSurfaceElevated = Color(0xFF1A222D)
 internal val HabitColors = listOf(
     AppBlue,
+    Color(0xFF245CC7),
+    Color(0xFF5598F6),
     AppGreen,
+    Color(0xFF347842),
+    Color(0xFF70AE72),
     AccentOrange,
-    Color(0xFF64D8CB),
-    Color(0xFFA889FF),
-    Color(0xFF38BDF8),
-    Color(0xFFFF6B8A),
-    Color(0xFF8B9CFF),
-    Color(0xFFE4A936),
-    Color(0xFFEF5B5B),
-    Color(0xFF5FD09A),
-    Color(0xFFC17CEB),
-    Color(0xFFFF8A3D),
-    Color(0xFF00A6A6),
-    Color(0xFF536DFE),
-    Color(0xFFD65DB1),
+    Color(0xFFD9822B),
+    AppLavender,
+    Color(0xFF7964C8),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
 
@@ -480,6 +475,11 @@ private fun HabitTrackerTheme(content: @Composable () -> Unit) {
             primaryContainer = Color(0xFF142D59),
             onPrimaryContainer = Color(0xFFD9E7FF),
             secondary = AccentOrange,
+            tertiary = AppLavender,
+            error = AccentOrange,
+            onError = Color.White,
+            errorContainer = Color(0xFF47261A),
+            onErrorContainer = Color(0xFFFFD8C8),
             background = AppBackground,
             onBackground = Color(0xFFF5F4FA),
             surface = AppSurface,
@@ -509,14 +509,24 @@ internal fun AppScreenHeader(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Surface(shape = RoundedCornerShape(10.dp), color = accent.copy(alpha = 0.16f)) {
-            Text(
-                label.uppercase(),
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                color = accent,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.ExtraBold,
-            )
+        Surface(
+            shape = RoundedCornerShape(11.dp),
+            color = Color.Transparent,
+            border = BorderStroke(1.dp, accent.copy(alpha = 0.24f)),
+        ) {
+            Box(
+                Modifier.background(
+                    Brush.horizontalGradient(listOf(accent.copy(alpha = 0.24f), Color.White.copy(alpha = 0.04f))),
+                ),
+            ) {
+                Text(
+                    label.uppercase(),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    color = accent,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                )
+            }
         }
         Text(
             title,
@@ -566,7 +576,7 @@ private fun HabitTrackerScreen(
                 onClick = onAddClick,
                 modifier = Modifier.padding(bottom = 72.dp),
                 containerColor = AppGreen,
-                contentColor = Color(0xFF173600),
+                contentColor = Color.White,
             ) {
                 Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
             }
@@ -698,13 +708,13 @@ private fun DayPicker(today: Long, selectedDay: Long, onSelectDay: (Long) -> Uni
                     text = weekdayLabels[isoDayOfWeek(day) - 1],
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (selected) Color(0xFF173600)
+                    color = if (selected) Color.White
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = dayOfMonth(day).toString(),
                     fontWeight = FontWeight.Bold,
-                    color = if (selected) Color(0xFF173600)
+                    color = if (selected) Color.White
                     else MaterialTheme.colorScheme.onSurface,
                 )
             }
@@ -731,7 +741,13 @@ private fun HabitCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         border = BorderStroke(1.dp, color.copy(alpha = 0.18f)),
     ) {
-        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(
+            Modifier.fillMaxWidth().background(
+                Brush.linearGradient(
+                    listOf(color.copy(alpha = 0.10f), Color.Transparent, AppSurface.copy(alpha = 0.80f)),
+                ),
+            ).padding(16.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(62.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(
@@ -767,7 +783,7 @@ private fun HabitCard(
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (completed) color else MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = if (completed) Color(0xFF173C32) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        contentColor = if (completed) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.size(46.dp),
@@ -931,10 +947,10 @@ private fun HabitEditorDialog(
                 }
                 Text("Цвет", style = MaterialTheme.typography.labelLarge)
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HabitColors.chunked(8).forEachIndexed { rowIndex, colors ->
+                    HabitColors.chunked(5).forEachIndexed { rowIndex, colors ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             colors.forEachIndexed { columnIndex, color ->
-                                val index = rowIndex * 8 + columnIndex
+                                val index = rowIndex * 5 + columnIndex
                                 val selected = colorIndex == index
                                 Surface(
                                     modifier = Modifier.size(34.dp).clickable { colorIndex = index },
@@ -968,33 +984,61 @@ private fun HabitEditorDialog(
 @Composable
 internal fun WeekdaySelector(value: Set<Int>, onValueChange: (Set<Int>) -> Unit) {
     val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    val allDays = (1..7).toSet()
+    val allSelected = value.containsAll(allDays)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Дни недели", style = MaterialTheme.typography.labelLarge)
         labels.chunked(4).forEachIndexed { rowIndex, rowLabels ->
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowLabels.forEachIndexed { columnIndex, label ->
                     val day = rowIndex * 4 + columnIndex + 1
                     val selected = day in value
-                Surface(
+                    Surface(
                         modifier = Modifier.weight(1f).height(42.dp).clickable {
                             val updated = if (selected) value - day else value + day
                             if (updated.isNotEmpty()) onValueChange(updated)
                         },
                         shape = RoundedCornerShape(14.dp),
-                    color = if (selected) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.surfaceVariant,
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
+                        color = if (selected) Color.Transparent else Color.White.copy(alpha = 0.05f),
+                        border = BorderStroke(
+                            1.dp,
+                            if (selected) AppBlue.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.09f),
+                        ),
+                    ) {
+                        Box(
+                            modifier = if (selected) Modifier.background(
+                                Brush.horizontalGradient(listOf(AppBlue.copy(alpha = 0.92f), AppGreen.copy(alpha = 0.86f))),
+                            ) else Modifier,
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
                                 label,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimary
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.Bold,
-                        )
+                                color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
                     }
                 }
-                }
                 repeat(4 - rowLabels.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth().height(44.dp).clickable { onValueChange(allDays) },
+            shape = RoundedCornerShape(15.dp),
+            color = Color.Transparent,
+            border = BorderStroke(1.dp, if (allSelected) AppGreen.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.11f)),
+        ) {
+            Box(
+                modifier = if (allSelected) Modifier.background(
+                    Brush.horizontalGradient(listOf(AppGreen.copy(alpha = 0.78f), AppBlue.copy(alpha = 0.62f))),
+                ) else Modifier.background(Color.White.copy(alpha = 0.04f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Все дни недели",
+                    color = if (allSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.ExtraBold,
+                )
             }
         }
         Text(

@@ -119,7 +119,7 @@ internal fun FinanceScreen(
                 },
                 modifier = Modifier.padding(bottom = 72.dp),
                 containerColor = AppGreen,
-                contentColor = Color(0xFF173600),
+                contentColor = Color.White,
             ) { Icon(Icons.Rounded.Add, contentDescription = "Добавить операцию") }
         },
     ) { padding ->
@@ -164,7 +164,7 @@ internal fun FinanceScreen(
                                     Text("За ${monthName(currentDate.month).lowercase()}", color = Color.White.copy(alpha = 0.56f), style = MaterialTheme.typography.labelMedium)
                                     Text(
                                         (if (monthChange > 0) "+" else "") + formatMoney(monthChange, currency),
-                                        color = when { monthChange > 0 -> Color(0xFF52D273); monthChange < 0 -> Color(0xFFFF5E6C); else -> Color.White },
+                                        color = when { monthChange > 0 -> AppGreen; monthChange < 0 -> AccentOrange; else -> Color.White },
                                         fontWeight = FontWeight.Bold,
                                     )
                                 }
@@ -337,8 +337,8 @@ internal fun FinanceScreen(
                             onClick = { onToggleSettled(transaction.id); selectedTransaction = null },
                             modifier = Modifier.height(48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (transaction.settled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF52D273),
-                                contentColor = if (transaction.settled) MaterialTheme.colorScheme.onSurface else Color(0xFF102515),
+                                containerColor = if (transaction.settled) MaterialTheme.colorScheme.surfaceVariant else AppGreen,
+                                contentColor = Color.White,
                             ),
                         ) { Text(if (transaction.settled) "Вернуть" else "Погасить") }
                     }
@@ -767,7 +767,7 @@ private fun AddTransactionDialog(
             Button(
                 onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target, comment) },
                 enabled = (!needsTarget || target.isNotBlank()) && amountMinor > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color.White),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -913,7 +913,7 @@ private fun TransactionAnalyticsDialog(
                                         maxLines = 2,
                                     )
                                 }
-                                if (transaction.settled) Text("Погашен", color = Color(0xFF52D273), style = MaterialTheme.typography.labelSmall)
+                                if (transaction.settled) Text("Погашен", color = AppGreen, style = MaterialTheme.typography.labelSmall)
                             }
                             Text(
                                 convertMinor(transaction.amountMinor, transaction.currency, data.displayCurrency, data.rates)
@@ -961,7 +961,7 @@ private fun NameDialog(
             Button(
                 onClick = { onConfirm(value) },
                 enabled = value.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color.White),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -1029,10 +1029,10 @@ private fun FriendManagerDialog(
 @Composable
 private fun FinanceColorGrid(selectedIndex: Int, onSelect: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FinanceCategoryPalette.chunked(8).forEachIndexed { rowIndex, colors ->
+        FinanceCategoryPalette.chunked(5).forEachIndexed { rowIndex, colors ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 colors.forEachIndexed { columnIndex, color ->
-                    val index = rowIndex * 8 + columnIndex
+                    val index = rowIndex * 5 + columnIndex
                     val selected = selectedIndex == index
                     Surface(
                         modifier = Modifier.size(30.dp).clickable { onSelect(index) },
@@ -1051,29 +1051,23 @@ private fun FinanceColorGrid(selectedIndex: Int, onSelect: (Int) -> Unit) {
 }
 
 private fun transactionTypeColor(type: TransactionType): Color = when (type) {
-    TransactionType.EXPENSE -> Color(0xFFFF5E6C)
-    TransactionType.INCOME -> Color(0xFF52D273)
-    TransactionType.OWED_TO_ME -> Color(0xFFA889FF)
-    TransactionType.I_OWE -> AccentOrange
+    TransactionType.EXPENSE -> AccentOrange
+    TransactionType.INCOME -> AppGreen
+    TransactionType.OWED_TO_ME -> AppBlue
+    TransactionType.I_OWE -> AppLavender
 }
 
 internal val FinanceCategoryPalette = listOf(
-    Color(0xFF2F7DFF),
+    AppBlue,
+    Color(0xFF245CC7),
+    Color(0xFF5598F6),
+    AppGreen,
+    Color(0xFF347842),
+    Color(0xFF70AE72),
     AccentOrange,
-    Color(0xFF52D273),
-    Color(0xFF64D8CB),
-    Color(0xFFA889FF),
-    Color(0xFFFF6B8A),
-    Color(0xFF4D8DFF),
-    Color(0xFFE4A936),
-    Color(0xFF38BDF8),
-    Color(0xFFEF5B5B),
-    Color(0xFF5FD09A),
-    Color(0xFFC17CEB),
-    Color(0xFFFF8A3D),
-    Color(0xFF00A6A6),
-    Color(0xFF536DFE),
-    Color(0xFFD65DB1),
+    Color(0xFFD9822B),
+    AppLavender,
+    Color(0xFF7964C8),
 )
 
 @Composable
@@ -1101,7 +1095,7 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
             Button(
                 onClick = { onConfirm(parsed) },
                 enabled = value.isNotBlank() && parsed >= 0,
-                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color.White),
             ) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

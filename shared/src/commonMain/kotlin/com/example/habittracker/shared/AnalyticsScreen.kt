@@ -54,8 +54,8 @@ internal enum class AnalyticsKind { HABITS, FINANCE }
 
 private val AnalyticsOrange = AccentOrange
 private val AnalyticsBlue = Color(0xFF2F7DFF)
-private val AnalyticsIncome = Color(0xFF52D273)
-private val AnalyticsExpense = Color(0xFFFF5E6C)
+private val AnalyticsIncome = AppGreen
+private val AnalyticsExpense = AccentOrange
 private val AnalyticsCard = AppSurface
 private val AnalyticsCardElevated = AppSurfaceElevated
 
@@ -147,7 +147,7 @@ private fun InsightDetailsDialog(insight: AnalyticsInsight, onDismiss: () -> Uni
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         rowItems.forEachIndexed { index, line ->
                             val parts = line.split(':', limit = 2)
-                            val accent = listOf(AppBlue, AccentOrange, Color(0xFFA889FF), Color(0xFF38BDF8))[(details.indexOf(line) + index).mod(4)]
+                            val accent = listOf(AppBlue, AccentOrange, AppLavender, AppGreen)[(details.indexOf(line) + index).mod(4)]
                             Surface(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(18.dp),
@@ -198,7 +198,7 @@ private fun InsightBarChart(values: List<Float>) {
             ) {
                 visibleValues.forEachIndexed { index, value ->
                     val ratio = (value.coerceAtLeast(0f) / maxValue).coerceIn(0f, 1f)
-                    val color = listOf(AppBlue, AccentOrange, Color(0xFFA889FF), Color(0xFF38BDF8))[index.mod(4)]
+                    val color = listOf(AppBlue, AccentOrange, AppLavender, AppGreen)[index.mod(4)]
                     Box(
                         Modifier
                             .weight(1f)

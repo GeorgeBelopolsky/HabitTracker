@@ -273,13 +273,13 @@ private fun CalendarDay(
     val active = day in habit.createdAtEpochDay..today && scheduled
     val background = when {
         completed -> color
-        active && day < today -> MaterialTheme.colorScheme.errorContainer
-        day == today && scheduled -> MaterialTheme.colorScheme.primaryContainer
+        active && day < today -> AccentOrange.copy(alpha = 0.30f)
+        day == today && scheduled -> AppBlue.copy(alpha = 0.28f)
         else -> Color.Transparent
     }
     val contentColor = when {
-        completed -> Color(0xFF173C32)
-        active && day < today -> MaterialTheme.colorScheme.onErrorContainer
+        completed -> Color.White
+        active && day < today -> AccentOrange
         !scheduled -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
         else -> MaterialTheme.colorScheme.onSurface
     }
