@@ -116,7 +116,7 @@ private fun AnalyticsSelector(selected: AnalyticsKind, onSelect: (AnalyticsKind)
                 val active = item == selected
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
-                        .background(if (active) Color(0xFFA8FF00) else Color.Transparent)
+                        .background(if (active) AppGreen else Color.Transparent)
                         .clickable { onSelect(item) }.padding(vertical = 11.dp),
                     contentAlignment = Alignment.Center,
                 ) {

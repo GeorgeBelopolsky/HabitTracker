@@ -754,7 +754,7 @@ private fun AddTransactionDialog(
             Button(
                 onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target, comment) },
                 enabled = (!needsTarget || target.isNotBlank()) && amountMinor > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -948,7 +948,7 @@ private fun NameDialog(
             Button(
                 onClick = { onConfirm(value) },
                 enabled = value.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -1087,7 +1087,7 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
             Button(
                 onClick = { onConfirm(parsed) },
                 enabled = value.isNotBlank() && parsed >= 0,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color(0xFF173600)),
             ) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

@@ -107,7 +107,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-internal val AppGreen = Color(0xFFA8FF00)
+internal val AppGreen = Color(0xFF8FDD18)
 internal val AppBlue = Color(0xFF2F7DFF)
 internal val AccentOrange = Color(0xFFD96828)
 internal val AppBackground = Color(0xFF080B10)
