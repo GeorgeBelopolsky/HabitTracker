@@ -399,14 +399,17 @@ private fun CategorySection(
                 Surface(
                     modifier = Modifier.clickable { onSelect(category) },
                     shape = RoundedCornerShape(16.dp),
-                    color = color.copy(alpha = 0.20f),
+                    color = AppSurface,
+                    border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
                 ) {
-                    Text(
-                        category,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                        fontWeight = FontWeight.SemiBold,
-                        color = color,
-                    )
+                    Box(Modifier.background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.20f), color.copy(alpha = 0.06f))))) {
+                        Text(
+                            category,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = color,
+                        )
+                    }
                 }
             }
             Surface(
@@ -441,14 +444,17 @@ private fun FriendSection(
                 Surface(
                     modifier = Modifier.clickable { onSelect(friend) },
                     shape = RoundedCornerShape(16.dp),
-                    color = color.copy(alpha = 0.20f),
+                    color = AppSurface,
+                    border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
                 ) {
-                    Text(
-                        friend,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
-                        fontWeight = FontWeight.SemiBold,
-                        color = color,
-                    )
+                    Box(Modifier.background(Brush.horizontalGradient(listOf(color.copy(alpha = 0.20f), color.copy(alpha = 0.06f))))) {
+                        Text(
+                            friend,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                            fontWeight = FontWeight.SemiBold,
+                            color = color,
+                        )
+                    }
                 }
             }
             Surface(
@@ -556,11 +562,11 @@ private fun FinanceAmountField(
             textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
             shape = RoundedCornerShape(18.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = AppBlue,
+                focusedBorderColor = AccentOrange,
                 unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                focusedContainerColor = AppBlue.copy(alpha = 0.07f),
+                focusedContainerColor = AccentOrange.copy(alpha = 0.06f),
                 unfocusedContainerColor = AppSurfaceElevated,
-                cursorColor = AppGreen,
+                cursorColor = AccentOrange,
             ),
             modifier = Modifier.fillMaxWidth(),
         )
@@ -579,10 +585,14 @@ private fun FinanceMetric(
     Surface(
         modifier = modifier.clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = color.copy(alpha = 0.12f),
+        color = AppSurface,
         border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
     ) {
-        Column(Modifier.padding(15.dp)) {
+        Column(
+            Modifier.background(
+                Brush.linearGradient(listOf(color.copy(alpha = 0.18f), color.copy(alpha = 0.05f), Color.Transparent)),
+            ).padding(15.dp),
+        ) {
             Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatMoney(amount, currency), fontWeight = FontWeight.ExtraBold, color = color)
             Text("Подробнее  ›", style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.78f))
@@ -665,7 +675,14 @@ private fun AddTransactionDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая операция", fontWeight = FontWeight.Bold) },
+        containerColor = Color(0xFF101C2E),
+        shape = RoundedCornerShape(30.dp),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("ФИНАНСЫ", color = AccentOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
+                Text("Новая операция", color = Color.White, fontWeight = FontWeight.ExtraBold)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
@@ -749,16 +766,21 @@ private fun AddTransactionDialog(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                Text("Комментарий", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = comment,
                     onValueChange = { comment = it },
-                    label = { Text("Комментарий") },
                     placeholder = { Text("Например: счёт за воду") },
                     supportingText = { Text("Необязательно") },
                     minLines = 2,
                     maxLines = 3,
                     shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF2F7DFF)),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentOrange,
+                        cursorColor = AccentOrange,
+                        focusedContainerColor = AccentOrange.copy(alpha = 0.05f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -767,7 +789,7 @@ private fun AddTransactionDialog(
             Button(
                 onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target, comment) },
                 enabled = (!needsTarget || target.isNotBlank()) && amountMinor > 0,
-                colors = ButtonDefaults.buttonColors(containerColor = AppGreen, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
             ) { Text("Добавить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -790,7 +812,14 @@ private fun EditTransactionDialog(
     val amountMinor = parseAmountMinor(amount)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Изменить операцию", fontWeight = FontWeight.Bold) },
+        containerColor = Color(0xFF101C2E),
+        shape = RoundedCornerShape(30.dp),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("ФИНАНСЫ", color = AccentOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
+                Text("Изменить операцию", color = Color.White, fontWeight = FontWeight.ExtraBold)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
@@ -833,16 +862,21 @@ private fun EditTransactionDialog(
                     }
                     }
                 }
+                Text("Комментарий", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = comment,
                     onValueChange = { comment = it },
-                    label = { Text("Комментарий") },
                     placeholder = { Text("Например: счёт за воду") },
                     supportingText = { Text("Необязательно") },
                     minLines = 2,
                     maxLines = 3,
                     shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF2F7DFF)),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentOrange,
+                        cursorColor = AccentOrange,
+                        focusedContainerColor = AccentOrange.copy(alpha = 0.05f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
+                    ),
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
@@ -851,7 +885,7 @@ private fun EditTransactionDialog(
             Button(
                 onClick = { onConfirm(amountMinor, currency, if (transaction.type == TransactionType.INCOME) transaction.type.title else target, comment) },
                 enabled = amountMinor > 0 && (transaction.type == TransactionType.INCOME || target.isNotBlank()),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F7DFF), contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
             ) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -1059,15 +1093,15 @@ private fun transactionTypeColor(type: TransactionType): Color = when (type) {
 
 internal val FinanceCategoryPalette = listOf(
     AppBlue,
-    Color(0xFF245CC7),
-    Color(0xFF5598F6),
-    AppGreen,
-    Color(0xFF347842),
-    Color(0xFF70AE72),
+    Color(0xFFE05252),
     AccentOrange,
-    Color(0xFFD9822B),
+    AppGreen,
+    Color(0xFFD7A62A),
     AppLavender,
-    Color(0xFF7964C8),
+    Color(0xFFC95783),
+    Color(0xFF3B9FC4),
+    Color(0xFF3C8D83),
+    Color(0xFF5865C7),
 )
 
 @Composable

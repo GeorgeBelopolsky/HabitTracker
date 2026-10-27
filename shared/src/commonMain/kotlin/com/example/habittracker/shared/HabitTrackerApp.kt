@@ -56,6 +56,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -116,15 +117,15 @@ internal val AppSurface = Color(0xFF121821)
 internal val AppSurfaceElevated = Color(0xFF1A222D)
 internal val HabitColors = listOf(
     AppBlue,
-    Color(0xFF245CC7),
-    Color(0xFF5598F6),
-    AppGreen,
-    Color(0xFF347842),
-    Color(0xFF70AE72),
+    Color(0xFFE05252),
     AccentOrange,
-    Color(0xFFD9822B),
+    AppGreen,
+    Color(0xFFD7A62A),
     AppLavender,
-    Color(0xFF7964C8),
+    Color(0xFFC95783),
+    Color(0xFF3B9FC4),
+    Color(0xFF3C8D83),
+    Color(0xFF5865C7),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
 
@@ -905,7 +906,14 @@ private fun HabitEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(dialogTitle, fontWeight = FontWeight.Bold) },
+        containerColor = Color(0xFF101C2E),
+        shape = RoundedCornerShape(30.dp),
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("НАСТРОЙКА", color = AccentOrange, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.ExtraBold)
+                Text(dialogTitle, color = Color.White, fontWeight = FontWeight.ExtraBold)
+            }
+        },
         text = {
             Column(
                 modifier = Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()),
@@ -920,47 +928,63 @@ private fun HabitEditorDialog(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentOrange,
+                        cursorColor = AccentOrange,
+                        focusedContainerColor = AccentOrange.copy(alpha = 0.05f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.03f),
+                    ),
                 )
                 Text("Иконка", style = MaterialTheme.typography.labelLarge)
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Surface(
+                    shape = RoundedCornerShape(19.dp),
+                    color = Color.White.copy(alpha = 0.035f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
                 ) {
-                    HabitIcons.forEach { candidate ->
-                        Surface(
-                            modifier = Modifier.size(44.dp).clickable { emoji = candidate.key },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (emoji == candidate.key) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = candidate.image,
-                                    contentDescription = null,
-                                    tint = if (emoji == candidate.key) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(23.dp),
-                                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(7.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        HabitIcons.forEach { candidate ->
+                            val selected = emoji == candidate.key
+                            Surface(
+                                modifier = Modifier.size(46.dp).clickable { emoji = candidate.key },
+                                shape = CircleShape,
+                                color = if (selected) AccentOrange.copy(alpha = 0.24f) else Color.Transparent,
+                                border = if (selected) BorderStroke(1.dp, AccentOrange.copy(alpha = 0.55f)) else null,
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = candidate.image,
+                                        contentDescription = null,
+                                        tint = if (selected) AccentOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(23.dp),
+                                    )
+                                }
                             }
                         }
                     }
                 }
                 Text("Цвет", style = MaterialTheme.typography.labelLarge)
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HabitColors.chunked(5).forEachIndexed { rowIndex, colors ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            colors.forEachIndexed { columnIndex, color ->
-                                val index = rowIndex * 5 + columnIndex
-                                val selected = colorIndex == index
-                                Surface(
-                                    modifier = Modifier.size(34.dp).clickable { colorIndex = index },
-                                    shape = CircleShape,
-                                    color = color,
-                                    border = if (selected) BorderStroke(3.dp, Color.White) else null,
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        if (selected) Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
-                                    }
+                Surface(
+                    shape = RoundedCornerShape(19.dp),
+                    color = Color.White.copy(alpha = 0.035f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 10.dp, vertical = 9.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        HabitColors.forEachIndexed { index, color ->
+                            val selected = colorIndex == index
+                            Surface(
+                                modifier = Modifier.size(39.dp).clickable { colorIndex = index },
+                                shape = CircleShape,
+                                color = color,
+                                border = if (selected) BorderStroke(3.dp, Color.White) else BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (selected) Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
                                 }
                             }
                         }
@@ -973,7 +997,11 @@ private fun HabitEditorDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(title, emoji, colorIndex, scheduledDays) }, enabled = title.isNotBlank()) {
+            Button(
+                onClick = { onConfirm(title, emoji, colorIndex, scheduledDays) },
+                enabled = title.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = AccentOrange, contentColor = Color.White),
+            ) {
                 Text(actionTitle)
             }
         },
@@ -1000,14 +1028,11 @@ internal fun WeekdaySelector(value: Set<Int>, onValueChange: (Set<Int>) -> Unit)
                         },
                         shape = RoundedCornerShape(14.dp),
                         color = if (selected) Color.Transparent else Color.White.copy(alpha = 0.05f),
-                        border = BorderStroke(
-                            1.dp,
-                            if (selected) AppBlue.copy(alpha = 0.34f) else Color.White.copy(alpha = 0.09f),
-                        ),
+                        border = BorderStroke(1.dp, if (selected) AccentOrange.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.09f)),
                     ) {
                         Box(
                             modifier = if (selected) Modifier.background(
-                                Brush.horizontalGradient(listOf(AppBlue.copy(alpha = 0.92f), AppGreen.copy(alpha = 0.86f))),
+                                Brush.horizontalGradient(listOf(AccentOrange, Color(0xFF9D431F))),
                             ) else Modifier,
                             contentAlignment = Alignment.Center,
                         ) {
@@ -1026,11 +1051,11 @@ internal fun WeekdaySelector(value: Set<Int>, onValueChange: (Set<Int>) -> Unit)
             modifier = Modifier.fillMaxWidth().height(44.dp).clickable { onValueChange(allDays) },
             shape = RoundedCornerShape(15.dp),
             color = Color.Transparent,
-            border = BorderStroke(1.dp, if (allSelected) AppGreen.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.11f)),
+            border = BorderStroke(1.dp, if (allSelected) AccentOrange.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.11f)),
         ) {
             Box(
                 modifier = if (allSelected) Modifier.background(
-                    Brush.horizontalGradient(listOf(AppGreen.copy(alpha = 0.78f), AppBlue.copy(alpha = 0.62f))),
+                    Brush.horizontalGradient(listOf(AccentOrange, Color(0xFF9D431F))),
                 ) else Modifier.background(Color.White.copy(alpha = 0.04f)),
                 contentAlignment = Alignment.Center,
             ) {

@@ -149,7 +149,7 @@ private fun InsightDetailsDialog(insight: AnalyticsInsight, onDismiss: () -> Uni
                             val parts = line.split(':', limit = 2)
                             val accent = listOf(AppBlue, AccentOrange, AppLavender, AppGreen)[(details.indexOf(line) + index).mod(4)]
                             Surface(
-                                modifier = Modifier.weight(1f),
+                                modifier = if (rowItems.size == 1) Modifier.fillMaxWidth() else Modifier.weight(1f),
                                 shape = RoundedCornerShape(18.dp),
                                 color = accent.copy(alpha = 0.11f),
                                 border = BorderStroke(1.dp, accent.copy(alpha = 0.18f)),
@@ -160,7 +160,6 @@ private fun InsightDetailsDialog(insight: AnalyticsInsight, onDismiss: () -> Uni
                                 }
                             }
                         }
-                        if (rowItems.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
 
