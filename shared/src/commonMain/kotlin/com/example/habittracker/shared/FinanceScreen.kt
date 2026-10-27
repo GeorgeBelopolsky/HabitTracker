@@ -47,7 +47,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 
 @Composable
 internal fun FinanceScreen(
@@ -470,9 +470,17 @@ private fun ExchangeRateSummary(rates: ExchangeRates, onEdit: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         shape = RoundedCornerShape(20.dp),
-        color = AccentOrange.copy(alpha = 0.10f),
+        color = AppSurface,
+        border = BorderStroke(1.dp, AccentOrange.copy(alpha = 0.20f)),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(
+            Modifier.background(
+                Brush.horizontalGradient(
+                    listOf(AppBlue.copy(alpha = 0.14f), Color.Transparent, AccentOrange.copy(alpha = 0.16f)),
+                ),
+            ).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.CurrencyExchange, null, tint = AccentOrange)
                 Spacer(Modifier.size(8.dp))
@@ -510,10 +518,15 @@ private fun CurrencySelector(value: MoneyCurrency, onChange: (MoneyCurrency) -> 
             Surface(
                 modifier = Modifier.weight(1f).height(42.dp).clickable { onChange(currency) },
                 shape = RoundedCornerShape(14.dp),
-                color = if (selected) AppGreen else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (selected) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(currency.code, fontWeight = FontWeight.Bold, color = if (selected) Color(0xFF173600) else MaterialTheme.colorScheme.onSurface)
+                Box(
+                    modifier = if (selected) Modifier.background(
+                        Brush.horizontalGradient(listOf(AppBlue, AccentOrange)),
+                    ) else Modifier,
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(currency.code, fontWeight = FontWeight.Bold, color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
@@ -975,22 +988,7 @@ private fun CategoryManagerDialog(
                                 Icon(Icons.Rounded.Delete, contentDescription = "Удалить $category", tint = MaterialTheme.colorScheme.error)
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FinanceCategoryPalette.forEachIndexed { index, color ->
-                                val selected = data.categoryColorIndex(category) == index
-                                Box(
-                                    Modifier
-                                        .size(if (selected) 29.dp else 25.dp)
-                                        .clip(CircleShape)
-                                        .background(color)
-                                        .clickable { onColorChange(category, index) }
-                                        .then(
-                                            if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                            else Modifier,
-                                        ),
-                                )
-                            }
-                        }
+                        FinanceColorGrid(data.categoryColorIndex(category)) { onColorChange(category, it) }
                     }
                 }
             }
@@ -1019,25 +1017,37 @@ private fun FriendManagerDialog(
                                 Icon(Icons.Rounded.Delete, contentDescription = "Удалить $friend", tint = MaterialTheme.colorScheme.error)
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FinanceCategoryPalette.forEachIndexed { index, color ->
-                                val selected = data.friendColorIndex(friend) == index
-                                Box(
-                                    Modifier.size(if (selected) 29.dp else 25.dp).clip(CircleShape).background(color)
-                                        .clickable { onColorChange(friend, index) }
-                                        .then(
-                                            if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
-                                            else Modifier,
-                                        ),
-                                )
-                            }
-                        }
+                        FinanceColorGrid(data.friendColorIndex(friend)) { onColorChange(friend, it) }
                     }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Готово") } },
     )
+}
+
+@Composable
+private fun FinanceColorGrid(selectedIndex: Int, onSelect: (Int) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FinanceCategoryPalette.chunked(8).forEachIndexed { rowIndex, colors ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                colors.forEachIndexed { columnIndex, color ->
+                    val index = rowIndex * 8 + columnIndex
+                    val selected = selectedIndex == index
+                    Surface(
+                        modifier = Modifier.size(30.dp).clickable { onSelect(index) },
+                        shape = CircleShape,
+                        color = color,
+                        border = if (selected) BorderStroke(3.dp, Color.White) else null,
+                    ) {
+                        if (selected) Box(contentAlignment = Alignment.Center) {
+                            Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun transactionTypeColor(type: TransactionType): Color = when (type) {
@@ -1060,6 +1070,10 @@ internal val FinanceCategoryPalette = listOf(
     Color(0xFFEF5B5B),
     Color(0xFF5FD09A),
     Color(0xFFC17CEB),
+    Color(0xFFFF8A3D),
+    Color(0xFF00A6A6),
+    Color(0xFF536DFE),
+    Color(0xFFD65DB1),
 )
 
 @Composable
@@ -1103,26 +1117,138 @@ private fun RatesDialog(
 ) {
     var rub by remember { mutableStateOf(rates.rubPerUsd?.toString().orEmpty()) }
     var ars by remember { mutableStateOf(rates.arsPerUsd?.toString().orEmpty()) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Курсы валют") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Автоматически: для ARS используется продажа USDT на Bybit P2P, для RUB — покупка USDT.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(onClick = onAutomatic, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (rates.automatic) "Обновить автоматический курс" else "Включить автоматический курс")
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(30.dp),
+            color = AppSurface,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.12f)),
+        ) {
+            Column(
+                Modifier
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                Color(0xFF172B48),
+                                AppSurface,
+                                AccentOrange.copy(alpha = 0.22f),
+                            ),
+                        ),
+                    )
+                    .padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = CircleShape, color = AppBlue.copy(alpha = 0.18f)) {
+                        Icon(
+                            Icons.Rounded.CurrencyExchange,
+                            contentDescription = null,
+                            tint = AppBlue,
+                            modifier = Modifier.padding(12.dp).size(25.dp),
+                        )
+                    }
+                    Spacer(Modifier.width(13.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Курсы валют", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                        Text("Bybit P2P или ручной курс", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Surface(shape = RoundedCornerShape(10.dp), color = if (rates.automatic) AppGreen.copy(alpha = 0.17f) else AccentOrange.copy(alpha = 0.17f)) {
+                        Text(
+                            if (rates.automatic) "AUTO" else "ВРУЧНУЮ",
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                            color = if (rates.automatic) AppGreen else AccentOrange,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                        )
+                    }
                 }
-                Text("Или задайте собственные значения:", fontWeight = FontWeight.SemiBold)
-                TextField(rub, { rub = it }, label = { Text("Покупка: 1 USD = … RUB") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-                TextField(ars, { ars = it }, label = { Text("Продажа: 1 USD = … ARS") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+
+                Surface(shape = RoundedCornerShape(20.dp), color = Color.Black.copy(alpha = 0.20f)) {
+                    Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Как считается курс", color = AccentOrange, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Для песо используется продажа USDT, для рубля — покупка USDT. Так приложение показывает именно тот курс, который нужен для ваших расчётов.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+
+                GradientActionButton(
+                    label = if (rates.automatic) "Обновить курс автоматически" else "Включить автоматический курс",
+                    brush = Brush.horizontalGradient(listOf(AppBlue, Color(0xFF1556BE))),
+                    onClick = onAutomatic,
+                )
+
+                AppSectionHeading("Ручная настройка", "USD → валюта", AccentOrange)
+                RateValueField("Покупка USDT", "RUB", rub) { rub = it }
+                RateValueField("Продажа USDT", "ARS", ars) { ars = it }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onDismiss, modifier = Modifier.weight(0.7f)) { Text("Отмена") }
+                    GradientActionButton(
+                        label = "Сохранить вручную",
+                        brush = Brush.horizontalGradient(listOf(AccentOrange, Color(0xFF9E3D16))),
+                        onClick = { onManual(parsePositiveDouble(rub), parsePositiveDouble(ars)) },
+                        modifier = Modifier.weight(1.3f),
+                    )
+                }
             }
-        },
-        confirmButton = { Button(onClick = { onManual(parsePositiveDouble(rub), parsePositiveDouble(ars)) }) { Text("Сохранить вручную") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
-    )
+        }
+    }
+}
+
+@Composable
+private fun RateValueField(
+    operation: String,
+    currencyCode: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(operation, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+            Text("1 USD =", color = AppBlue, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        }
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            suffix = { Text(currencyCode, color = AccentOrange, fontWeight = FontWeight.ExtraBold) },
+            placeholder = { Text("0.00") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AppBlue,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedContainerColor = AppBlue.copy(alpha = 0.08f),
+                unfocusedContainerColor = Color.Black.copy(alpha = 0.18f),
+                cursorColor = AppGreen,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+private fun GradientActionButton(
+    label: String,
+    brush: Brush,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.clip(RoundedCornerShape(17.dp)).clickable(onClick = onClick),
+        shape = RoundedCornerShape(17.dp),
+        color = Color.Transparent,
+    ) {
+        Box(
+            Modifier.fillMaxWidth().background(brush).padding(horizontal = 16.dp, vertical = 13.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(label, color = Color.White, fontWeight = FontWeight.ExtraBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        }
+    }
 }
 
 private fun parsePositiveDouble(value: String): Double? = value.replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }

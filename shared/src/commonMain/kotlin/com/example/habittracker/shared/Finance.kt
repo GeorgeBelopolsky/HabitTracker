@@ -13,7 +13,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlin.math.roundToLong
 
-private const val FinancePaletteSize = 12
+private const val FinancePaletteSize = 16
 
 @Serializable
 enum class MoneyCurrency(val code: String, val symbol: String) {

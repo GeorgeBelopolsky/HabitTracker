@@ -126,6 +126,10 @@ internal val HabitColors = listOf(
     Color(0xFFEF5B5B),
     Color(0xFF5FD09A),
     Color(0xFFC17CEB),
+    Color(0xFFFF8A3D),
+    Color(0xFF00A6A6),
+    Color(0xFF536DFE),
+    Color(0xFFD65DB1),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
 
@@ -319,9 +323,22 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
             .shadow(18.dp, glassShape)
             .border(1.dp, Color.White.copy(alpha = 0.20f), glassShape),
         shape = RoundedCornerShape(30.dp),
-        color = Color(0xD9121510),
+        color = Color.Transparent,
     ) {
-        BoxWithConstraints(Modifier.padding(6.dp).height(59.dp)) {
+        BoxWithConstraints(
+            Modifier
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color(0xF2182433),
+                            Color(0xF20D121A),
+                            Color(0xF2281712),
+                        ),
+                    ),
+                )
+                .padding(6.dp)
+                .height(59.dp),
+        ) {
             val itemWidth = maxWidth / AppSection.entries.size
             val density = LocalDensity.current
             val itemWidthPx = with(density) { itemWidth.toPx() }
@@ -364,23 +381,13 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                     .background(
                         Brush.linearGradient(
                             listOf(
-                                Color.White.copy(alpha = if (dragging) 0.30f else 0.22f),
-                                AppGreen.copy(alpha = if (dragging) 0.24f else 0.16f),
+                                AppBlue.copy(alpha = if (dragging) 0.58f else 0.42f),
+                                AppGreen.copy(alpha = if (dragging) 0.34f else 0.22f),
+                                AccentOrange.copy(alpha = if (dragging) 0.48f else 0.32f),
                             ),
                         ),
                     )
                     .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(25.dp)),
-            )
-            Box(
-                Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth(0.62f)
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, Color.White.copy(alpha = 0.48f), Color.Transparent),
-                        ),
-                    ),
             )
             Row(
                 Modifier
@@ -477,6 +484,13 @@ private fun HabitTrackerTheme(content: @Composable () -> Unit) {
             onBackground = Color(0xFFF5F4FA),
             surface = AppSurface,
             surfaceVariant = AppSurfaceElevated,
+            surfaceContainerLowest = AppBackground,
+            surfaceContainerLow = Color(0xFF0E141C),
+            surfaceContainer = AppSurface,
+            surfaceContainerHigh = AppSurfaceElevated,
+            surfaceContainerHighest = Color(0xFF222D3A),
+            surfaceBright = Color(0xFF263342),
+            surfaceDim = Color(0xFF090D12),
             onSurface = Color(0xFFF5F4FA),
             onSurfaceVariant = Color(0xFFAAB4C3),
             outline = Color(0xFF3A4656),
@@ -504,7 +518,12 @@ internal fun AppScreenHeader(
                 fontWeight = FontWeight.ExtraBold,
             )
         }
-        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
         Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -519,7 +538,13 @@ internal fun AppSectionHeading(
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(5.dp).height(24.dp).clip(CircleShape).background(accent))
         Spacer(Modifier.width(10.dp))
-        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
+        )
         subtitle?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) }
     }
 }
@@ -905,17 +930,23 @@ private fun HabitEditorDialog(
                     }
                 }
                 Text("Цвет", style = MaterialTheme.typography.labelLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    HabitColors.forEachIndexed { index, color ->
-                        Box(
-                            modifier = Modifier
-                                .size(if (colorIndex == index) 34.dp else 30.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .clickable { colorIndex = index },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            if (colorIndex == index) Text("✓", color = Color(0xFF173C32))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HabitColors.chunked(8).forEachIndexed { rowIndex, colors ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            colors.forEachIndexed { columnIndex, color ->
+                                val index = rowIndex * 8 + columnIndex
+                                val selected = colorIndex == index
+                                Surface(
+                                    modifier = Modifier.size(34.dp).clickable { colorIndex = index },
+                                    shape = CircleShape,
+                                    color = color,
+                                    border = if (selected) BorderStroke(3.dp, Color.White) else null,
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (selected) Text("✓", color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
