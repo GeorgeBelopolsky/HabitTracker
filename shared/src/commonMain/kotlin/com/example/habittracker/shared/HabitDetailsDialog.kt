@@ -41,6 +41,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 
 @Composable
 internal fun HabitDetailsDialog(
@@ -49,6 +52,7 @@ internal fun HabitDetailsDialog(
     onDismiss: () -> Unit,
     onToggleDay: (Long) -> Unit,
     onScheduleChange: (Set<Int>) -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -132,15 +136,32 @@ internal fun HabitDetailsDialog(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                Button(
-                    onClick = { showDeleteConfirmation = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Удалить привычку")
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f).height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2F7DFF),
+                            contentColor = Color.White,
+                        ),
+                    ) {
+                        Icon(Icons.Rounded.Edit, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Изменить", fontWeight = FontWeight.Bold)
+                    }
+                    Surface(
+                        modifier = Modifier.size(50.dp).clickable { showDeleteConfirmation = true },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Rounded.Delete,
+                                contentDescription = "Удалить привычку",
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -281,12 +302,12 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
-private fun startOfMonth(epochDay: Long): Long {
+internal fun startOfMonth(epochDay: Long): Long {
     val date = calendarDate(epochDay)
     return epochDayOf(date.year, date.month, 1)
 }
 
-private fun shiftMonth(monthStart: Long, delta: Int): Long {
+internal fun shiftMonth(monthStart: Long, delta: Int): Long {
     val date = calendarDate(monthStart)
     val zeroBased = date.year * 12 + date.month - 1 + delta
     val year = zeroBased / 12

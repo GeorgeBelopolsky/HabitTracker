@@ -69,9 +69,9 @@ internal fun FinanceScreen(
     onBudgetChange: (MoneyCurrency, Long) -> Unit,
     onRatesChange: (Double?, Double?) -> Unit,
     onRefreshRates: () -> Unit,
-    onAdd: (Long, MoneyCurrency, TransactionType, String) -> Unit,
+    onAdd: (Long, MoneyCurrency, TransactionType, String, String) -> Unit,
     onDelete: (String) -> Unit,
-    onUpdate: (String, Long, MoneyCurrency, String) -> Unit,
+    onUpdate: (String, Long, MoneyCurrency, String, String) -> Unit,
     onToggleSettled: (String) -> Unit,
     onAddCategory: (String) -> Unit,
     onDeleteCategory: (String) -> Unit,
@@ -90,7 +90,7 @@ internal fun FinanceScreen(
     var showBudget by remember { mutableStateOf(false) }
     var showRates by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<MoneyTransaction?>(null) }
-    var editingDebt by remember { mutableStateOf<MoneyTransaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<MoneyTransaction?>(null) }
     var analyticsType by remember { mutableStateOf<TransactionType?>(null) }
     val currency = state.data.displayCurrency
     val expense = state.totalMinor(TransactionType.EXPENSE)
@@ -148,7 +148,7 @@ internal fun FinanceScreen(
                 ) {
                     Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Общий остаток", color = Color.White.copy(alpha = 0.7f))
-                        Text(formatMoney(balance, currency), color = Color(0xFFFFDD2D), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+                        Text(formatMoney(balance, currency), color = Color(0xFF2F7DFF), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
                         Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = 0.06f)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -164,7 +164,7 @@ internal fun FinanceScreen(
                                     )
                                 }
                                 TextButton(onClick = { showBudget = true }) {
-                                    Icon(Icons.Rounded.Edit, null, tint = Color(0xFFFFDD2D))
+                                    Icon(Icons.Rounded.Edit, null, tint = Color(0xFF2F7DFF))
                             }
                         }
                     }
@@ -262,8 +262,8 @@ internal fun FinanceScreen(
         initialCategory = presetCategory,
         initialType = presetType,
         onDismiss = { showAdd = false; presetCategory = ""; presetType = TransactionType.EXPENSE },
-    ) { amount, itemCurrency, type, target ->
-        onAdd(amount, itemCurrency, type, target)
+    ) { amount, itemCurrency, type, target, comment ->
+        onAdd(amount, itemCurrency, type, target, comment)
         showAdd = false
         presetCategory = ""
         presetType = TransactionType.EXPENSE
@@ -306,43 +306,61 @@ internal fun FinanceScreen(
             text = {
                 Text(
                     "${transaction.type.title}\n${formatMoney(transaction.amountMinor, transaction.currency)}" +
-                        if (transaction.settled) "\nДолг погашен" else "",
+                        (if (transaction.comment.isNotBlank()) "\n${transaction.comment}" else "") +
+                        (if (transaction.settled) "\nДолг погашен" else ""),
                 )
             },
             confirmButton = {
-                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = {
+                            editingTransaction = transaction
+                            selectedTransaction = null
+                        },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F7DFF), contentColor = Color.White),
+                    ) {
+                        Icon(Icons.Rounded.Edit, null)
+                        Spacer(Modifier.size(6.dp))
+                        Text("Изменить", fontWeight = FontWeight.Bold)
+                    }
                     if (transaction.type == TransactionType.OWED_TO_ME || transaction.type == TransactionType.I_OWE) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = {
-                                editingDebt = transaction
-                                selectedTransaction = null
-                            }) { Icon(Icons.Rounded.Edit, null); Spacer(Modifier.size(4.dp)); Text("Изменить") }
-                            Button(
-                                onClick = { onToggleSettled(transaction.id); selectedTransaction = null },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (transaction.settled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF52D273),
-                                    contentColor = if (transaction.settled) MaterialTheme.colorScheme.onSurface else Color(0xFF102515),
-                                ),
-                            ) { Text(if (transaction.settled) "Вернуть" else "Погашен") }
+                        Button(
+                            onClick = { onToggleSettled(transaction.id); selectedTransaction = null },
+                            modifier = Modifier.height(48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (transaction.settled) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF52D273),
+                                contentColor = if (transaction.settled) MaterialTheme.colorScheme.onSurface else Color(0xFF102515),
+                            ),
+                        ) { Text(if (transaction.settled) "Вернуть" else "Погасить") }
+                    }
+                    Surface(
+                        onClick = { onDelete(transaction.id); selectedTransaction = null },
+                        modifier = Modifier.size(48.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Delete, contentDescription = "Удалить", tint = MaterialTheme.colorScheme.onErrorContainer)
                         }
                     }
-                    Button(
-                        onClick = { onDelete(transaction.id); selectedTransaction = null },
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    ) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.size(6.dp)); Text("Удалить") }
                 }
             },
-            dismissButton = { TextButton(onClick = { selectedTransaction = null }) { Text("Готово") } },
+            dismissButton = {},
         )
     }
-    editingDebt?.let { transaction ->
-        EditDebtDialog(
+    editingTransaction?.let { transaction ->
+        EditTransactionDialog(
             transaction = transaction,
             data = state.data,
-            onDismiss = { editingDebt = null },
-            onConfirm = { amount, itemCurrency, target ->
-                onUpdate(transaction.id, amount, itemCurrency, target)
-                editingDebt = null
+            onDismiss = { editingTransaction = null },
+            onConfirm = { amount, itemCurrency, target, comment ->
+                onUpdate(transaction.id, amount, itemCurrency, target, comment)
+                editingTransaction = null
             },
         )
     }
@@ -544,6 +562,14 @@ private fun TransactionCard(
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.SemiBold,
                 )
+                if (item.comment.isNotBlank()) {
+                    Text(
+                        item.comment,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                    )
+                }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(formatMoney(item.amountMinor, item.currency), fontWeight = FontWeight.ExtraBold, color = typeColor)
@@ -565,7 +591,7 @@ private fun AddTransactionDialog(
     initialCategory: String,
     initialType: TransactionType,
     onDismiss: () -> Unit,
-    onConfirm: (Long, MoneyCurrency, TransactionType, String) -> Unit,
+    onConfirm: (Long, MoneyCurrency, TransactionType, String, String) -> Unit,
 ) {
     val categories = data.categories
     val friends = data.friends
@@ -573,6 +599,7 @@ private fun AddTransactionDialog(
     var target by remember(initialCategory) { mutableStateOf(initialCategory) }
     var currency by remember { mutableStateOf(MoneyCurrency.USD) }
     var type by remember(initialType) { mutableStateOf(initialType) }
+    var comment by remember { mutableStateOf("") }
     val amountMinor = parseAmountMinor(amount)
     val needsTarget = type != TransactionType.INCOME
     val targets = when (type) {
@@ -585,11 +612,14 @@ private fun AddTransactionDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новая операция", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
+                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
                     suffix = { Text(currency.symbol, color = selectedTypeColor, fontWeight = FontWeight.ExtraBold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
@@ -679,11 +709,23 @@ private fun AddTransactionDialog(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it },
+                    label = { Text("Комментарий") },
+                    placeholder = { Text("Например: счёт за воду") },
+                    supportingText = { Text("Необязательно") },
+                    minLines = 2,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF2F7DFF)),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target) },
+                onClick = { onConfirm(amountMinor, currency, type, if (type == TransactionType.INCOME) type.title else target, comment) },
                 enabled = (!needsTarget || target.isNotBlank()) && amountMinor > 0,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
             ) { Text("Добавить") }
@@ -693,28 +735,32 @@ private fun AddTransactionDialog(
 }
 
 @Composable
-private fun EditDebtDialog(
+private fun EditTransactionDialog(
     transaction: MoneyTransaction,
     data: FinanceData,
     onDismiss: () -> Unit,
-    onConfirm: (Long, MoneyCurrency, String) -> Unit,
+    onConfirm: (Long, MoneyCurrency, String, String) -> Unit,
 ) {
     var amount by remember(transaction.id) {
         mutableStateOf("${transaction.amountMinor / 100}.${(transaction.amountMinor % 100).toString().padStart(2, '0')}")
     }
     var currency by remember(transaction.id) { mutableStateOf(transaction.currency) }
-    var friend by remember(transaction.id) { mutableStateOf(transaction.category) }
+    var target by remember(transaction.id) { mutableStateOf(transaction.category) }
+    var comment by remember(transaction.id) { mutableStateOf(transaction.comment) }
     val amountMinor = parseAmountMinor(amount)
     val accent = transactionTypeColor(transaction.type)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Изменить долг", fontWeight = FontWeight.Bold) },
+        title = { Text("Изменить операцию", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { amount = it },
-                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
+                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
                     suffix = { Text(currency.symbol, color = accent, fontWeight = FontWeight.ExtraBold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
@@ -724,38 +770,60 @@ private fun EditDebtDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 CurrencySelector(currency) { currency = it }
-                Text(
-                    if (transaction.type == TransactionType.I_OWE) "Кому" else "Кто",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    data.friends.forEach { item ->
-                        val color = FinanceCategoryPalette[data.friendColorIndex(item)]
+                val needsTarget = transaction.type != TransactionType.INCOME
+                val targets = if (transaction.type == TransactionType.EXPENSE) data.categories else data.friends
+                if (needsTarget) {
+                    Text(
+                        when (transaction.type) {
+                            TransactionType.EXPENSE -> "Категория"
+                            TransactionType.I_OWE -> "Кому"
+                            else -> "Кто"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    targets.forEach { item ->
+                        val color = FinanceCategoryPalette[
+                            if (transaction.type == TransactionType.EXPENSE) data.categoryColorIndex(item) else data.friendColorIndex(item)
+                        ]
                         Surface(
                             shape = RoundedCornerShape(13.dp),
-                            color = color.copy(alpha = if (friend == item) 0.24f else 0.10f),
+                            color = color.copy(alpha = if (target == item) 0.24f else 0.10f),
                             modifier = Modifier.border(
-                                if (friend == item) 1.dp else 0.dp,
-                                if (friend == item) color else Color.Transparent,
+                                if (target == item) 1.dp else 0.dp,
+                                if (target == item) color else Color.Transparent,
                                 RoundedCornerShape(13.dp),
-                            ).clickable { friend = item },
+                            ).clickable { target = item },
                         ) {
                             Text(
                                 item,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
-                                color = if (friend == item) color else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (friend == item) FontWeight.Bold else FontWeight.Normal,
+                                color = if (target == item) color else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (target == item) FontWeight.Bold else FontWeight.Normal,
                             )
                         }
                     }
+                    }
                 }
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it },
+                    label = { Text("Комментарий") },
+                    placeholder = { Text("Например: счёт за воду") },
+                    supportingText = { Text("Необязательно") },
+                    minLines = 2,
+                    maxLines = 3,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF2F7DFF)),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = { onConfirm(amountMinor, currency, friend) },
-                enabled = amountMinor > 0 && friend.isNotBlank(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA8FF00), contentColor = Color(0xFF173600)),
+                onClick = { onConfirm(amountMinor, currency, if (transaction.type == TransactionType.INCOME) transaction.type.title else target, comment) },
+                enabled = amountMinor > 0 && (transaction.type == TransactionType.INCOME || target.isNotBlank()),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F7DFF), contentColor = Color.White),
             ) { Text("Сохранить") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },
@@ -809,6 +877,14 @@ private fun TransactionAnalyticsDialog(
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(transaction.category, fontWeight = FontWeight.Bold)
+                                if (transaction.comment.isNotBlank()) {
+                                    Text(
+                                        transaction.comment,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                    )
+                                }
                                 if (transaction.settled) Text("Погашен", color = Color(0xFF52D273), style = MaterialTheme.typography.labelSmall)
                             }
                             Text(
@@ -957,7 +1033,7 @@ private fun transactionTypeColor(type: TransactionType): Color = when (type) {
 }
 
 internal val FinanceCategoryPalette = listOf(
-    Color(0xFFFFDD2D),
+    Color(0xFF2F7DFF),
     Color(0xFF64D8CB),
     Color(0xFF7C9BFF),
     Color(0xFFFF8FA3),
@@ -983,15 +1059,15 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    label = { Text("Сумма", color = Color(0xFFFFDD2D), fontWeight = FontWeight.SemiBold) },
-                    suffix = { Text(currency.symbol, color = Color(0xFFFFDD2D), fontWeight = FontWeight.ExtraBold) },
+                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
+                    suffix = { Text(currency.symbol, color = Color(0xFF2F7DFF), fontWeight = FontWeight.ExtraBold) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
                     shape = RoundedCornerShape(18.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFFFFDD2D),
-                        focusedContainerColor = Color(0xFFFFDD2D).copy(alpha = 0.07f),
+                        focusedBorderColor = Color(0xFF2F7DFF),
+                        focusedContainerColor = Color(0xFF2F7DFF).copy(alpha = 0.07f),
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                     ),
                     modifier = Modifier.fillMaxWidth(),

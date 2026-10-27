@@ -105,14 +105,14 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 private val NavigationGreen = Color(0xFFA8FF00)
-private val BankYellow = Color(0xFFFFDD2D)
 private val BankBlue = Color(0xFF2F7DFF)
+private val CalmOrange = Color(0xFFE57B32)
 private val DarkBackground = Color(0xFF0B0B0D)
 internal val HabitColors = listOf(
-    BankYellow,
     BankBlue,
+    NavigationGreen,
     Color(0xFF64D8CB),
-    Color(0xFFFFA95A),
+    CalmOrange,
     Color(0xFFA889FF),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
@@ -175,6 +175,7 @@ fun HabitTrackerApp(storage: HabitStorage) {
     val scope = rememberCoroutineScope()
     var section by remember { mutableStateOf(AppSection.HABITS) }
     var analyticsKind by remember { mutableStateOf(AnalyticsKind.FINANCE) }
+    var editingHabit by remember { mutableStateOf<Habit?>(null) }
 
     LaunchedEffect(store) { store.load() }
     LaunchedEffect(financeStore) {
@@ -218,12 +219,12 @@ fun HabitTrackerApp(storage: HabitStorage) {
                         onBudgetChange = { currency, amount -> scope.launch { financeStore.setBudget(currency, amount) } },
                         onRatesChange = { rub, ars -> scope.launch { financeStore.setRates(rub, ars) } },
                         onRefreshRates = { scope.launch { financeStore.refreshRates(force = true) } },
-                        onAdd = { amount, currency, type, target ->
-                            scope.launch { financeStore.addTransaction(amount, currency, type, target) }
+                        onAdd = { amount, currency, type, target, comment ->
+                            scope.launch { financeStore.addTransaction(amount, currency, type, target, comment) }
                         },
                         onDelete = { scope.launch { financeStore.deleteTransaction(it) } },
-                        onUpdate = { id, amount, currency, target ->
-                            scope.launch { financeStore.updateTransaction(id, amount, currency, target) }
+                        onUpdate = { id, amount, currency, target, comment ->
+                            scope.launch { financeStore.updateTransaction(id, amount, currency, target, comment) }
                         },
                         onToggleSettled = { scope.launch { financeStore.toggleTransactionSettled(it) } },
                         onAddCategory = { scope.launch { financeStore.addCategory(it) } },
@@ -237,7 +238,13 @@ fun HabitTrackerApp(storage: HabitStorage) {
                             scope.launch { financeStore.updateFriendColor(name, color) }
                         },
                     )
-                    AppSection.ANALYTICS -> AnalyticsScreen(state, financeState, analyticsKind) { analyticsKind = it }
+                    AppSection.ANALYTICS -> AnalyticsScreen(
+                        habitState = state,
+                        financeState = financeState,
+                        kind = analyticsKind,
+                        onKindChange = { analyticsKind = it },
+                        onHabitClick = store::openHabit,
+                    )
                 }
             }
             AppBottomBar(
@@ -270,7 +277,19 @@ fun HabitTrackerApp(storage: HabitStorage) {
                 onScheduleChange = { scheduledDays ->
                     scope.launch { store.updateSchedule(habit.id, scheduledDays) }
                 },
+                onEdit = { editingHabit = habit },
                 onDelete = { scope.launch { store.delete(habit.id) } },
+            )
+        }
+
+        editingHabit?.let { habit ->
+            EditHabitDialog(
+                habit = habit,
+                onDismiss = { editingHabit = null },
+                onConfirm = { title, emoji, color, scheduledDays ->
+                    scope.launch { store.updateHabit(habit.id, title, emoji, color, scheduledDays) }
+                    editingHabit = null
+                },
             )
         }
     }
@@ -437,11 +456,11 @@ private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, o
 private fun HabitTrackerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = BankYellow,
-            onPrimary = Color(0xFF1B1B19),
-            primaryContainer = Color(0xFF403800),
-            onPrimaryContainer = Color(0xFFFFED8A),
-            secondary = BankBlue,
+            primary = BankBlue,
+            onPrimary = Color.White,
+            primaryContainer = Color(0xFF142D59),
+            onPrimaryContainer = Color(0xFFD9E7FF),
+            secondary = CalmOrange,
             background = DarkBackground,
             onBackground = Color(0xFFF5F4FA),
             surface = Color(0xFF1B1B1F),
@@ -751,14 +770,55 @@ private fun AddHabitDialog(
     onDismiss: () -> Unit,
     onConfirm: (String, String, Int, Set<Int>) -> Unit,
 ) {
-    var title by remember { mutableStateOf("") }
-    var emoji by remember { mutableStateOf(HabitIcons.first().key) }
-    var colorIndex by remember { mutableIntStateOf(0) }
-    var scheduledDays by remember { mutableStateOf(setOf(1, 3, 5)) }
+    HabitEditorDialog(
+        dialogTitle = "Новая привычка",
+        actionTitle = "Добавить",
+        initialTitle = "",
+        initialEmoji = HabitIcons.first().key,
+        initialColorIndex = 0,
+        initialScheduledDays = (1..7).toSet(),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+    )
+}
+
+@Composable
+private fun EditHabitDialog(
+    habit: Habit,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, Int, Set<Int>) -> Unit,
+) {
+    HabitEditorDialog(
+        dialogTitle = "Изменить привычку",
+        actionTitle = "Сохранить",
+        initialTitle = habit.title,
+        initialEmoji = habit.emoji,
+        initialColorIndex = habit.colorIndex.mod(HabitColors.size),
+        initialScheduledDays = habit.schedule(),
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+    )
+}
+
+@Composable
+private fun HabitEditorDialog(
+    dialogTitle: String,
+    actionTitle: String,
+    initialTitle: String,
+    initialEmoji: String,
+    initialColorIndex: Int,
+    initialScheduledDays: Set<Int>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, String, Int, Set<Int>) -> Unit,
+) {
+    var title by remember(initialTitle) { mutableStateOf(initialTitle) }
+    var emoji by remember(initialEmoji) { mutableStateOf(initialEmoji) }
+    var colorIndex by remember(initialColorIndex) { mutableIntStateOf(initialColorIndex) }
+    var scheduledDays by remember(initialScheduledDays) { mutableStateOf(initialScheduledDays) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Новая привычка", fontWeight = FontWeight.Bold) },
+        title = { Text(dialogTitle, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
@@ -818,7 +878,7 @@ private fun AddHabitDialog(
         },
         confirmButton = {
             Button(onClick = { onConfirm(title, emoji, colorIndex, scheduledDays) }, enabled = title.isNotBlank()) {
-                Text("Добавить")
+                Text(actionTitle)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена") } },

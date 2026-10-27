@@ -110,6 +110,27 @@ class HabitStore(
         mutableState.value = mutableState.value.copy(habits = updated)
     }
 
+    suspend fun updateHabit(
+        habitId: String,
+        title: String,
+        emoji: String,
+        colorIndex: Int,
+        scheduledWeekdays: Set<Int>,
+    ) = mutex.withLock {
+        if (title.isBlank() || scheduledWeekdays.isEmpty()) return@withLock
+        val updated = mutableState.value.habits.map { habit ->
+            if (habit.id == habitId) habit.copy(
+                title = title.trim(),
+                emoji = emoji,
+                colorIndex = colorIndex,
+                weeklyTargetDays = scheduledWeekdays.size,
+                scheduledWeekdays = scheduledWeekdays,
+            ) else habit
+        }
+        repository.save(updated)
+        mutableState.value = mutableState.value.copy(habits = updated)
+    }
+
     suspend fun delete(habitId: String) = mutex.withLock {
         val updated = mutableState.value.habits.filterNot { it.id == habitId }
         repository.save(updated)

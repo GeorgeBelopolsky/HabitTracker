@@ -33,6 +33,7 @@ data class MoneyTransaction(
     val category: String,
     val epochDay: Long,
     val settled: Boolean = false,
+    val comment: String = "",
 )
 
 @Serializable
@@ -176,6 +177,7 @@ class FinanceStore(
         currency: MoneyCurrency,
         type: TransactionType,
         target: String,
+        comment: String = "",
     ) = update { data ->
         val normalizedTarget = if (type == TransactionType.INCOME) type.title else target.trim()
         if (normalizedTarget.isBlank() || amountMinor <= 0) data else data.copy(
@@ -188,6 +190,7 @@ class FinanceStore(
                     type = type,
                     category = normalizedTarget,
                     epochDay = currentEpochDay(),
+                    comment = comment.trim(),
                 ),
             ) + data.transactions,
         )
@@ -202,6 +205,7 @@ class FinanceStore(
         amountMinor: Long,
         currency: MoneyCurrency,
         target: String,
+        comment: String = "",
     ) = update { data ->
         if (amountMinor <= 0 || target.isBlank()) data else data.copy(
             transactions = data.transactions.map { transaction ->
@@ -210,6 +214,7 @@ class FinanceStore(
                     amountMinor = amountMinor,
                     currency = currency,
                     category = target.trim(),
+                    comment = comment.trim(),
                 ) else transaction
             },
         )
