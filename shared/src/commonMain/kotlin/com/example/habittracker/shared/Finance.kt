@@ -13,6 +13,8 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlin.math.roundToLong
 
+private const val FinancePaletteSize = 12
+
 @Serializable
 enum class MoneyCurrency(val code: String, val symbol: String) {
     RUB("RUB", "₽"), USD("USD", "$"), ARS("ARS", "AR$")
@@ -235,7 +237,7 @@ class FinanceStore(
         if (normalized.isBlank() || data.categories.any { it.equals(normalized, ignoreCase = true) }) data
         else data.copy(
             categories = data.categories + normalized,
-            categoryColors = data.categoryColors + (normalized to data.categories.size.mod(8)),
+            categoryColors = data.categoryColors + (normalized to data.categories.size.mod(FinancePaletteSize)),
         )
     }
 
@@ -247,7 +249,7 @@ class FinanceStore(
     }
 
     suspend fun updateCategoryColor(name: String, colorIndex: Int) = update { data ->
-        data.copy(categoryColors = data.categoryColors + (name to colorIndex.mod(8)))
+        data.copy(categoryColors = data.categoryColors + (name to colorIndex.mod(FinancePaletteSize)))
     }
 
     suspend fun addFriend(name: String) = update { data ->
@@ -255,7 +257,7 @@ class FinanceStore(
         if (normalized.isBlank() || data.friends.any { it.equals(normalized, ignoreCase = true) }) data
         else data.copy(
             friends = data.friends + normalized,
-            friendColors = data.friendColors + (normalized to data.friends.size.mod(8)),
+            friendColors = data.friendColors + (normalized to data.friends.size.mod(FinancePaletteSize)),
         )
     }
 
@@ -264,7 +266,7 @@ class FinanceStore(
     }
 
     suspend fun updateFriendColor(name: String, colorIndex: Int) = update { data ->
-        data.copy(friendColors = data.friendColors + (name to colorIndex.mod(8)))
+        data.copy(friendColors = data.friendColors + (name to colorIndex.mod(FinancePaletteSize)))
     }
 
     private suspend fun update(transform: (FinanceData) -> FinanceData) = mutex.withLock {
@@ -275,12 +277,12 @@ class FinanceStore(
 }
 
 fun FinanceData.categoryColorIndex(name: String): Int = categoryColors[name]
-    ?: categories.indexOf(name).takeIf { it >= 0 }?.mod(8)
-    ?: name.fold(0) { result, char -> result + char.code }.mod(8)
+    ?: categories.indexOf(name).takeIf { it >= 0 }?.mod(FinancePaletteSize)
+    ?: name.fold(0) { result, char -> result + char.code }.mod(FinancePaletteSize)
 
 fun FinanceData.friendColorIndex(name: String): Int = friendColors[name]
-    ?: friends.indexOf(name).takeIf { it >= 0 }?.mod(8)
-    ?: name.fold(0) { result, char -> result + char.code }.mod(8)
+    ?: friends.indexOf(name).takeIf { it >= 0 }?.mod(FinancePaletteSize)
+    ?: name.fold(0) { result, char -> result + char.code }.mod(FinancePaletteSize)
 
 fun FinanceState.expensesByCategory(): List<Pair<String, Long>> = data.transactions
     .asSequence()

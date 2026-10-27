@@ -1,6 +1,7 @@
 package com.example.habittracker.shared
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -56,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -116,7 +118,7 @@ internal fun FinanceScreen(
                     showAdd = true
                 },
                 modifier = Modifier.padding(bottom = 72.dp),
-                containerColor = Color(0xFFA8FF00),
+                containerColor = AppGreen,
                 contentColor = Color(0xFF173600),
             ) { Icon(Icons.Rounded.Add, contentDescription = "Добавить операцию") }
         },
@@ -128,14 +130,11 @@ internal fun FinanceScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Финансы", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
-                        Text("Остаток, операции и долги", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    AppScreenHeader("Финансы", "Мои деньги", "Остаток, операции и долги", AppBlue, Modifier.weight(1f))
                     TextButton(onClick = { showRates = true }) {
-                        Icon(Icons.Rounded.CurrencyExchange, null)
+                        Icon(Icons.Rounded.CurrencyExchange, null, tint = AccentOrange)
                         Spacer(Modifier.size(5.dp))
-                        Text("Курсы")
+                        Text("Курсы", color = AccentOrange)
                     }
                 }
             }
@@ -143,11 +142,17 @@ internal fun FinanceScreen(
             item { ExchangeRateSummary(state.data.rates, onEdit = { showRates = true }) }
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF20201E)),
+                    colors = CardDefaults.cardColors(containerColor = AppSurface),
                     shape = RoundedCornerShape(28.dp),
+                    border = BorderStroke(1.dp, AppBlue.copy(alpha = 0.20f)),
                 ) {
-                    Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Общий остаток", color = Color.White.copy(alpha = 0.7f))
+                    Column(
+                        Modifier.fillMaxWidth().background(
+                            Brush.linearGradient(listOf(Color(0xFF14233A), Color(0xFF171A21), AccentOrange.copy(alpha = 0.18f))),
+                        ).padding(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text("Общий остаток", color = AccentOrange, fontWeight = FontWeight.SemiBold)
                         Text(formatMoney(balance, currency), color = Color(0xFF2F7DFF), fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
                         Surface(shape = RoundedCornerShape(18.dp), color = Color.White.copy(alpha = 0.06f)) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -226,8 +231,7 @@ internal fun FinanceScreen(
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("История", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    Text("${state.data.transactions.size}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    AppSectionHeading("История", "${state.data.transactions.size}", AccentOrange)
                 }
             }
             if (state.data.transactions.isEmpty()) {
@@ -386,7 +390,7 @@ private fun CategorySection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Категории", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            AppSectionHeading("Категории", accent = AppBlue, modifier = Modifier.weight(1f))
             TextButton(onClick = onManage) { Text("Настроить") }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -408,7 +412,7 @@ private fun CategorySection(
             Surface(
                 modifier = Modifier.size(44.dp).clickable(onClick = onAdd),
                 shape = CircleShape,
-                color = Color(0xFFA8FF00),
+                color = AppGreen,
             ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "Добавить категорию") } }
         }
         Text(
@@ -428,7 +432,7 @@ private fun FriendSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Друзья", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            AppSectionHeading("Друзья", accent = AccentOrange, modifier = Modifier.weight(1f))
             TextButton(onClick = onManage) { Text("Настроить") }
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -450,7 +454,7 @@ private fun FriendSection(
             Surface(
                 modifier = Modifier.size(44.dp).clickable(onClick = onAdd),
                 shape = CircleShape,
-                color = Color(0xFFA8FF00),
+                color = AppGreen,
             ) { Box(contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Add, "Добавить друга") } }
         }
         Text(
@@ -466,14 +470,14 @@ private fun ExchangeRateSummary(rates: ExchangeRates, onEdit: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
+        color = AccentOrange.copy(alpha = 0.10f),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CurrencyExchange, null, tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Rounded.CurrencyExchange, null, tint = AccentOrange)
                 Spacer(Modifier.size(8.dp))
                 Text("Текущий курс", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text(rates.sourceLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(rates.sourceLabel, style = MaterialTheme.typography.labelSmall, color = AccentOrange)
             }
             Text(
                 rates.rubPerUsd?.let { "1 USD = ${formatRate(it)} RUB · покупка USDT" }
@@ -506,13 +510,47 @@ private fun CurrencySelector(value: MoneyCurrency, onChange: (MoneyCurrency) -> 
             Surface(
                 modifier = Modifier.weight(1f).height(42.dp).clickable { onChange(currency) },
                 shape = RoundedCornerShape(14.dp),
-                color = if (selected) Color(0xFFA8FF00) else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (selected) AppGreen else MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(currency.code, fontWeight = FontWeight.Bold, color = if (selected) Color(0xFF173600) else MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FinanceAmountField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    currency: MoneyCurrency,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            "Сумма",
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = { Text("0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)) },
+            suffix = { Text(currency.symbol, color = AccentOrange, fontWeight = FontWeight.ExtraBold) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            singleLine = true,
+            textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
+            shape = RoundedCornerShape(18.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = AppBlue,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                focusedContainerColor = AppBlue.copy(alpha = 0.07f),
+                unfocusedContainerColor = AppSurfaceElevated,
+                cursorColor = AppGreen,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
@@ -525,7 +563,12 @@ private fun FinanceMetric(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    Surface(modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(20.dp), color = color.copy(alpha = 0.14f)) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = color.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.22f)),
+    ) {
         Column(Modifier.padding(15.dp)) {
             Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(formatMoney(amount, currency), fontWeight = FontWeight.ExtraBold, color = color)
@@ -607,7 +650,6 @@ private fun AddTransactionDialog(
         TransactionType.EXPENSE -> categories
         TransactionType.OWED_TO_ME, TransactionType.I_OWE -> friends
     }
-    val selectedTypeColor = transactionTypeColor(type)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Новая операция", fontWeight = FontWeight.Bold) },
@@ -616,22 +658,7 @@ private fun AddTransactionDialog(
                 modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
-                    suffix = { Text(currency.symbol, color = selectedTypeColor, fontWeight = FontWeight.ExtraBold) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = selectedTypeColor,
-                        focusedContainerColor = selectedTypeColor.copy(alpha = 0.08f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                FinanceAmountField(amount, { amount = it }, currency)
                 CurrencySelector(currency) { currency = it }
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TransactionType.entries.forEach { item ->
@@ -748,7 +775,6 @@ private fun EditTransactionDialog(
     var target by remember(transaction.id) { mutableStateOf(transaction.category) }
     var comment by remember(transaction.id) { mutableStateOf(transaction.comment) }
     val amountMinor = parseAmountMinor(amount)
-    val accent = transactionTypeColor(transaction.type)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Изменить операцию", fontWeight = FontWeight.Bold) },
@@ -757,18 +783,7 @@ private fun EditTransactionDialog(
                 modifier = Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { amount = it },
-                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
-                    suffix = { Text(currency.symbol, color = accent, fontWeight = FontWeight.ExtraBold) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                FinanceAmountField(amount, { amount = it }, currency)
                 CurrencySelector(currency) { currency = it }
                 val needsTarget = transaction.type != TransactionType.INCOME
                 val targets = if (transaction.type == TransactionType.EXPENSE) data.categories else data.friends
@@ -1029,18 +1044,22 @@ private fun transactionTypeColor(type: TransactionType): Color = when (type) {
     TransactionType.EXPENSE -> Color(0xFFFF5E6C)
     TransactionType.INCOME -> Color(0xFF52D273)
     TransactionType.OWED_TO_ME -> Color(0xFFA889FF)
-    TransactionType.I_OWE -> Color(0xFFFFA95A)
+    TransactionType.I_OWE -> AccentOrange
 }
 
 internal val FinanceCategoryPalette = listOf(
     Color(0xFF2F7DFF),
+    AccentOrange,
+    Color(0xFF52D273),
     Color(0xFF64D8CB),
-    Color(0xFF7C9BFF),
-    Color(0xFFFF8FA3),
     Color(0xFFA889FF),
-    Color(0xFFFFA95A),
+    Color(0xFFFF6B8A),
     Color(0xFF4D8DFF),
-    Color(0xFFB6C1D1),
+    Color(0xFFE4A936),
+    Color(0xFF38BDF8),
+    Color(0xFFEF5B5B),
+    Color(0xFF5FD09A),
+    Color(0xFFC17CEB),
 )
 
 @Composable
@@ -1056,22 +1075,7 @@ private fun AmountDialog(title: String, currency: MoneyCurrency, current: Long, 
                     "Укажите, сколько денег у вас было до добавления доходов и расходов.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                OutlinedTextField(
-                    value = value,
-                    onValueChange = { value = it },
-                    label = { Text("Сумма", color = Color(0xFF2F7DFF), fontWeight = FontWeight.SemiBold) },
-                    suffix = { Text(currency.symbol, color = Color(0xFF2F7DFF), fontWeight = FontWeight.ExtraBold) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF2F7DFF),
-                        focusedContainerColor = Color(0xFF2F7DFF).copy(alpha = 0.07f),
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                FinanceAmountField(value, { value = it }, currency)
                 Text(
                     "Текущая валюта: ${currency.code}",
                     style = MaterialTheme.typography.labelMedium,

@@ -23,14 +23,17 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,12 +50,14 @@ import androidx.compose.ui.unit.sp
 
 internal enum class AnalyticsKind { HABITS, FINANCE }
 
-private val AnalyticsOrange = Color(0xFFE57B32)
+private val AnalyticsOrange = AccentOrange
 private val AnalyticsBlue = Color(0xFF2F7DFF)
 private val AnalyticsIncome = Color(0xFF52D273)
 private val AnalyticsExpense = Color(0xFFFF5E6C)
-private val AnalyticsCard = Color(0xFF1B1B1F)
-private val AnalyticsCardElevated = Color(0xFF242429)
+private val AnalyticsCard = AppSurface
+private val AnalyticsCardElevated = AppSurfaceElevated
+
+private data class AnalyticsInsight(val title: String, val body: String)
 
 @Composable
 internal fun AnalyticsScreen(
@@ -65,6 +70,7 @@ internal fun AnalyticsScreen(
     val listState = remember(kind) { LazyListState() }
     var habitPeriodDays by remember { mutableIntStateOf(30) }
     var financeMonthOffset by remember { mutableIntStateOf(0) }
+    var insight by remember { mutableStateOf<AnalyticsInsight?>(null) }
     LaunchedEffect(kind) { listState.scrollToItem(0) }
     LazyColumn(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).statusBarsPadding(),
@@ -73,14 +79,32 @@ internal fun AnalyticsScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Text("Аналитика", fontSize = 30.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
-            Text("Главное за неделю и месяц", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AppScreenHeader("Аналитика", "Картина прогресса", "Привычки и деньги в одном месте", AccentOrange)
         }
         item { AnalyticsSelector(kind, onKindChange) }
         when (kind) {
-            AnalyticsKind.HABITS -> habitAnalyticsItems(habitState, habitPeriodDays, { habitPeriodDays = it }, onHabitClick)
-            AnalyticsKind.FINANCE -> financeAnalyticsItems(financeState, financeMonthOffset) { financeMonthOffset = it }
+            AnalyticsKind.HABITS -> habitAnalyticsItems(
+                habitState,
+                habitPeriodDays,
+                { habitPeriodDays = it },
+                onHabitClick,
+                { title, body -> insight = AnalyticsInsight(title, body) },
+            )
+            AnalyticsKind.FINANCE -> financeAnalyticsItems(
+                financeState,
+                financeMonthOffset,
+                { financeMonthOffset = it },
+                { title, body -> insight = AnalyticsInsight(title, body) },
+            )
         }
+    }
+    insight?.let { selected ->
+        AlertDialog(
+            onDismissRequest = { insight = null },
+            title = { Text(selected.title, fontWeight = FontWeight.ExtraBold) },
+            text = { Text(selected.body, color = MaterialTheme.colorScheme.onSurfaceVariant) },
+            confirmButton = { TextButton(onClick = { insight = null }) { Text("Понятно") } },
+        )
     }
 }
 
@@ -112,23 +136,39 @@ private fun androidx.compose.foundation.lazy.LazyListScope.habitAnalyticsItems(
     periodDays: Int,
     onPeriodChange: (Int) -> Unit,
     onHabitClick: (String) -> Unit,
+    onInsight: (String, String) -> Unit,
 ) {
     val percent = if (state.stats.weeklyTarget == 0) 0 else state.stats.weeklyCompletions * 100 / state.stats.weeklyTarget
     val successful = state.habits.count { it.weeklyProgress(state.today) >= 1f }
     val active = state.habits.count { it.isScheduledOn(state.today) }
 
-    item { HabitOverviewCard(percent, state.stats.weeklyCompletions, state.stats.weeklyTarget, successful, active) }
+    val weekStart = startOfWeek(state.today)
+    val weekdayLabels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+    val weekDetails = weekdayLabels.mapIndexed { index, label ->
+        val day = weekStart + index
+        val planned = state.habits.count { it.isScheduledOn(day) }
+        val completed = state.habits.count { it.isScheduledOn(day) && it.isCompleted(day) }
+        "$label: $completed из $planned"
+    }.joinToString("\n")
+
+    item {
+        HabitOverviewCard(percent, state.stats.weeklyCompletions, state.stats.weeklyTarget, successful, active) {
+            onInsight("Итог недели", "Выполнено ${state.stats.weeklyCompletions} из ${state.stats.weeklyTarget}.\nУспешных привычек: $successful.\nСегодня запланировано: $active.")
+        }
+    }
     item {
         SectionTitle("Ритм недели", "по запланированным дням")
         Spacer(Modifier.height(10.dp))
-        HabitWeekChart(state)
+        HabitWeekChart(state) { onInsight("Ритм недели", weekDetails) }
     }
     item {
         SectionTitle("Стабильность", "динамика выполнений")
         Spacer(Modifier.height(10.dp))
         HabitPeriodSelector(periodDays, onPeriodChange)
         Spacer(Modifier.height(10.dp))
-        HabitPeriodChart(state, periodDays)
+        HabitPeriodChart(state, periodDays) {
+            onInsight("Стабильность за $periodDays дней", "График показывает долю выполненных привычек среди всех запланированных. Переключайте период, чтобы сравнить короткий и месячный ритм.")
+        }
     }
     item { SectionTitle("Ваши привычки", "${state.habits.size} активных") }
     if (state.habits.isEmpty()) {
@@ -141,11 +181,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.habitAnalyticsItems(
 }
 
 @Composable
-private fun HabitOverviewCard(percent: Int, completed: Int, target: Int, successful: Int, activeToday: Int) {
-    Surface(shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
+private fun HabitOverviewCard(percent: Int, completed: Int, target: Int, successful: Int, activeToday: Int, onClick: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
         Box(
             Modifier.fillMaxWidth().background(
-                Brush.linearGradient(listOf(Color(0xFF20201E), Color(0xFF171C27))),
+                Brush.linearGradient(listOf(Color(0xFF142B4E), Color(0xFF141A24), AccentOrange.copy(alpha = 0.22f))),
             ).padding(20.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -202,10 +242,10 @@ private fun CompactMetric(label: String, value: String, note: String, color: Col
 }
 
 @Composable
-private fun HabitWeekChart(state: HabitTrackerState) {
+private fun HabitWeekChart(state: HabitTrackerState, onClick: () -> Unit) {
     val labels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
     val weekStart = startOfWeek(state.today)
-    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Row(
             Modifier.fillMaxWidth().height(205.dp).padding(horizontal = 12.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -275,7 +315,7 @@ private fun HabitPeriodSelector(selectedDays: Int, onSelect: (Int) -> Unit) {
 }
 
 @Composable
-private fun HabitPeriodChart(state: HabitTrackerState, periodDays: Int) {
+private fun HabitPeriodChart(state: HabitTrackerState, periodDays: Int, onClick: () -> Unit) {
     val groupCount = if (periodDays == 7) 7 else 5
     val groupSize = if (periodDays == 7) 1 else 6
     val firstDay = state.today - periodDays + 1
@@ -287,7 +327,7 @@ private fun HabitPeriodChart(state: HabitTrackerState, periodDays: Int) {
     }
     val weekLabels = listOf("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
 
-    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -377,6 +417,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
     state: FinanceState,
     selectedMonthOffset: Int,
     onMonthSelect: (Int) -> Unit,
+    onInsight: (String, String) -> Unit,
 ) {
     val currentDay = currentEpochDay()
     val current = calendarDate(currentDay)
@@ -418,21 +459,39 @@ private fun androidx.compose.foundation.lazy.LazyListScope.financeAnalyticsItems
     }
 
     item { FinanceMonthSelector(currentDay, selectedMonthOffset, onMonthSelect) }
-    item { FinanceOverviewCard(expenses, income, state.data.displayCurrency, selectedDate.month, transactions.size) }
+    val result = income - expenses
+    val categoryDetails = if (categories.isEmpty()) "Расходов по категориям пока нет." else categories.joinToString("\n") { (name, amount) ->
+        "$name: ${formatMoney(amount, state.data.displayCurrency)}"
+    }
+    val monthlyDetails = monthly.joinToString("\n") { item ->
+        val monthResult = item.income - item.expense
+        "${monthName(item.month)}: ${(if (monthResult >= 0) "+" else "−")}${formatMoney(kotlin.math.abs(monthResult), state.data.displayCurrency)}"
+    }
+
+    item {
+        FinanceOverviewCard(expenses, income, state.data.displayCurrency, selectedDate.month, transactions.size) {
+            onInsight(
+                "Сводка за ${monthName(selectedDate.month)}",
+                "Поступило: ${formatMoney(income, state.data.displayCurrency)}\nПотрачено: ${formatMoney(expenses, state.data.displayCurrency)}\nИтог: ${(if (result >= 0) "+" else "−")}${formatMoney(kotlin.math.abs(result), state.data.displayCurrency)}",
+            )
+        }
+    }
     item {
         SectionTitle("Динамика расходов", "7 последних дней месяца")
         Spacer(Modifier.height(10.dp))
-        FinanceWeekChart(dailyExpenses, state.data.displayCurrency)
+        FinanceWeekChart(dailyExpenses, state.data.displayCurrency) {
+            onInsight("Расходы по дням", dailyExpenses.joinToString("\n") { (day, amount) -> "${dayOfMonth(day)}: ${formatMoney(amount, state.data.displayCurrency)}" })
+        }
     }
     item {
         SectionTitle("Динамика сбережений", "по месяцам")
         Spacer(Modifier.height(10.dp))
-        MonthlyBalanceCard(monthly, state.data.displayCurrency)
+        MonthlyBalanceCard(monthly, state.data.displayCurrency) { onInsight("Динамика сбережений", monthlyDetails) }
     }
     item { SectionTitle("Категории", if (categories.isEmpty()) "пока без расходов" else "${categories.size} категорий") }
     item {
         if (categories.isEmpty()) AnalyticsEmptyState("Добавьте расход во вкладке «Финансы» — здесь появятся диаграмма и категории.")
-        else FinanceCategoryBreakdown(categories, expenses, state.data)
+        else FinanceCategoryBreakdown(categories, expenses, state.data) { onInsight("Расходы по категориям", categoryDetails) }
     }
 }
 
@@ -462,12 +521,19 @@ private fun FinanceMonthSelector(currentDay: Long, selectedOffset: Int, onSelect
 }
 
 @Composable
-private fun FinanceOverviewCard(expenses: Long, income: Long, currency: MoneyCurrency, month: Int, operationCount: Int) {
+private fun FinanceOverviewCard(
+    expenses: Long,
+    income: Long,
+    currency: MoneyCurrency,
+    month: Int,
+    operationCount: Int,
+    onClick: () -> Unit,
+) {
     val result = income - expenses
-    Surface(shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(28.dp), color = AnalyticsCard) {
         Column(
             Modifier.fillMaxWidth().background(
-                Brush.linearGradient(listOf(Color(0xFF20201E), Color(0xFF171C27))),
+                Brush.linearGradient(listOf(Color(0xFF14233A), Color(0xFF141A22), AccentOrange.copy(alpha = 0.20f))),
             ).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(17.dp),
         ) {
@@ -526,8 +592,8 @@ private data class MonthlyFinanceSummary(
 )
 
 @Composable
-private fun MonthlyBalanceCard(items: List<MonthlyFinanceSummary>, currency: MoneyCurrency) {
-    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+private fun MonthlyBalanceCard(items: List<MonthlyFinanceSummary>, currency: MoneyCurrency, onClick: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items.forEach { item ->
                 val result = item.income - item.expense
@@ -576,10 +642,10 @@ private fun FinanceMetric(label: String, value: String, accent: Color, modifier:
 }
 
 @Composable
-private fun FinanceWeekChart(values: List<Pair<Long, Long>>, currency: MoneyCurrency) {
+private fun FinanceWeekChart(values: List<Pair<Long, Long>>, currency: MoneyCurrency, onClick: () -> Unit) {
     val max = values.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
     val total = values.sumOf { it.second }
-    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Column(Modifier.weight(1f)) {
@@ -620,8 +686,8 @@ private fun FinanceWeekChart(values: List<Pair<Long, Long>>, currency: MoneyCurr
 }
 
 @Composable
-private fun FinanceCategoryBreakdown(categories: List<Pair<String, Long>>, total: Long, data: FinanceData) {
-    Surface(shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
+private fun FinanceCategoryBreakdown(categories: List<Pair<String, Long>>, total: Long, data: FinanceData, onClick: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), shape = RoundedCornerShape(24.dp), color = AnalyticsCard) {
         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Box(Modifier.fillMaxWidth().height(178.dp), contentAlignment = Alignment.Center) {
                 Canvas(Modifier.size(154.dp)) {
@@ -661,10 +727,8 @@ private fun FinanceCategoryBreakdown(categories: List<Pair<String, Long>>, total
 
 @Composable
 private fun SectionTitle(title: String, subtitle: String) {
-    Row(verticalAlignment = Alignment.Bottom) {
-        Text(title, modifier = Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onBackground)
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-    }
+    val accent = if (title.contains("Стабиль") || title.contains("сбереж") || title.contains("Категор")) AccentOrange else AppBlue
+    AppSectionHeading(title, subtitle, accent)
 }
 
 @Composable

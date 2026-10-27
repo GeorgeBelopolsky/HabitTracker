@@ -12,10 +12,12 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -104,16 +107,25 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
-private val NavigationGreen = Color(0xFFA8FF00)
-private val BankBlue = Color(0xFF2F7DFF)
-private val CalmOrange = Color(0xFFE57B32)
-private val DarkBackground = Color(0xFF0B0B0D)
+internal val AppGreen = Color(0xFFA8FF00)
+internal val AppBlue = Color(0xFF2F7DFF)
+internal val AccentOrange = Color(0xFFD96828)
+internal val AppBackground = Color(0xFF080B10)
+internal val AppSurface = Color(0xFF121821)
+internal val AppSurfaceElevated = Color(0xFF1A222D)
 internal val HabitColors = listOf(
-    BankBlue,
-    NavigationGreen,
+    AppBlue,
+    AppGreen,
+    AccentOrange,
     Color(0xFF64D8CB),
-    CalmOrange,
     Color(0xFFA889FF),
+    Color(0xFF38BDF8),
+    Color(0xFFFF6B8A),
+    Color(0xFF8B9CFF),
+    Color(0xFFE4A936),
+    Color(0xFFEF5B5B),
+    Color(0xFF5FD09A),
+    Color(0xFFC17CEB),
 )
 internal data class HabitIconOption(val key: String, val image: ImageVector)
 
@@ -353,7 +365,7 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
                         Brush.linearGradient(
                             listOf(
                                 Color.White.copy(alpha = if (dragging) 0.30f else 0.22f),
-                                Color(0xFF8EDC00).copy(alpha = if (dragging) 0.24f else 0.16f),
+                                AppGreen.copy(alpha = if (dragging) 0.24f else 0.16f),
                             ),
                         ),
                     )
@@ -432,7 +444,7 @@ private fun AppBottomBar(selected: AppSection, onSelect: (AppSection) -> Unit, m
 
 @Composable
 private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit, modifier: Modifier) {
-    val color = if (selected) Color(0xFFA8FF00) else Color.White.copy(alpha = 0.58f)
+    val color = if (selected) AppGreen else Color.White.copy(alpha = 0.58f)
     val scale by animateFloatAsState(
         targetValue = if (selected) 1.08f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
@@ -456,20 +468,60 @@ private fun BottomBarItem(label: String, icon: ImageVector, selected: Boolean, o
 private fun HabitTrackerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = BankBlue,
+            primary = AppBlue,
             onPrimary = Color.White,
             primaryContainer = Color(0xFF142D59),
             onPrimaryContainer = Color(0xFFD9E7FF),
-            secondary = CalmOrange,
-            background = DarkBackground,
+            secondary = AccentOrange,
+            background = AppBackground,
             onBackground = Color(0xFFF5F4FA),
-            surface = Color(0xFF1B1B1F),
-            surfaceVariant = Color(0xFF29292F),
+            surface = AppSurface,
+            surfaceVariant = AppSurfaceElevated,
             onSurface = Color(0xFFF5F4FA),
-            onSurfaceVariant = Color(0xFFB9B7C1),
+            onSurfaceVariant = Color(0xFFAAB4C3),
+            outline = Color(0xFF3A4656),
+            outlineVariant = Color(0xFF26303D),
         ),
         content = content,
     )
+}
+
+@Composable
+internal fun AppScreenHeader(
+    label: String,
+    title: String,
+    subtitle: String,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Surface(shape = RoundedCornerShape(10.dp), color = accent.copy(alpha = 0.16f)) {
+            Text(
+                label.uppercase(),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                color = accent,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.ExtraBold,
+            )
+        }
+        Text(title, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.ExtraBold)
+        Text(subtitle, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+internal fun AppSectionHeading(
+    title: String,
+    subtitle: String? = null,
+    accent: Color = AppBlue,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(5.dp).height(24.dp).clip(CircleShape).background(accent))
+        Spacer(Modifier.width(10.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+        subtitle?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -488,7 +540,7 @@ private fun HabitTrackerScreen(
             FloatingActionButton(
                 onClick = onAddClick,
                 modifier = Modifier.padding(bottom = 72.dp),
-                containerColor = NavigationGreen,
+                containerColor = AppGreen,
                 contentColor = Color(0xFF173600),
             ) {
                 Text("+", fontSize = 28.sp, fontWeight = FontWeight.Light)
@@ -545,18 +597,7 @@ private fun HabitTrackerScreen(
 
 @Composable
 private fun Header() {
-    Column {
-        Text(
-            text = "Мой ритм",
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.ExtraBold,
-        )
-        Text(
-            text = "Маленькие шаги каждый день",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    AppScreenHeader("Привычки", "Мой ритм", "Маленькие шаги каждый день", AppGreen)
 }
 
 @Composable
@@ -567,10 +608,14 @@ private fun ProgressSummary(stats: HabitStats, onClick: () -> Unit) {
     }
     Card(
         onClick = onClick,
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1265D8)),
+        colors = CardDefaults.cardColors(containerColor = AppSurface),
         shape = RoundedCornerShape(28.dp),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp)) {
+        Column(
+            Modifier.fillMaxWidth().background(
+                Brush.linearGradient(listOf(Color(0xFF174B94), Color(0xFF17345C), AccentOrange.copy(alpha = 0.72f))),
+            ).padding(horizontal = 20.dp, vertical = 18.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Прогресс", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 Text("Аналитика  ›", color = Color.White.copy(alpha = 0.78f), fontWeight = FontWeight.SemiBold)
@@ -617,7 +662,7 @@ private fun DayPicker(today: Long, selectedDay: Long, onSelectDay: (Long) -> Uni
                     .weight(1f)
                     .clip(RoundedCornerShape(18.dp))
                     .background(
-                        if (selected) NavigationGreen
+                        if (selected) AppGreen
                         else MaterialTheme.colorScheme.surface,
                     )
                     .clickable { onSelectDay(day) }
@@ -659,6 +704,7 @@ private fun HabitCard(
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.18f)),
     ) {
         Column(Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -820,16 +866,19 @@ private fun HabitEditorDialog(
         onDismissRequest = onDismiss,
         title = { Text(dialogTitle, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 590.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text("Название", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Название") },
+                    placeholder = { Text("Например: вечерняя прогулка") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
-                    supportingText = { Text("Например: прогулка, вода или тренировка") },
                 )
                 Text("Иконка", style = MaterialTheme.typography.labelLarge)
                 Row(
